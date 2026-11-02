@@ -1,0 +1,18 @@
+# Runtime databases and local state
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+data/*.db
+
+# Environment variables and secrets (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+
+# Node & OS artifacts
+node_modules/
+npm-debug.log*
+.DS_Store
+*.log
+coverage/
+tmp/

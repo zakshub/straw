@@ -1,0 +1,1061 @@
+const state = {
+  dashboard: null,
+  selectedOpportunityId: null,
+  selectedProductId: null,
+  filterStatus: '',
+  filterCategory: '',
+  theme: localStorage.getItem('straw_theme') || 'light'
+};
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function showFeedback(message) {
+  const banner = document.getElementById('global-feedback');
+  if (!banner) return;
+  banner.textContent = message;
+  banner.classList.remove('hidden');
+  setTimeout(() => {
+    banner.classList.add('hidden');
+  }, 5500);
+}
+
+function renderRecommendationBadge(rec) {
+  if (rec === 'APPROVE_FOR_VALIDATION') {
+    return `<span class="badge badge-verified">[APPROVE FOR VALIDATION]</span>`;
+  }
+  if (rec === 'NEEDS_EVIDENCE') {
+    return `<span class="badge badge-warn">[NEEDS VERIFIED EVIDENCE]</span>`;
+  }
+  if (rec === 'REJECT_WEAK_IDEA') {
+    return `<span class="badge badge-danger">[REJECT WEAK IDEA]</span>`;
+  }
+  return `<span class="badge badge-info">[${escapeHtml(rec)}]</span>`;
+}
+
+function renderEvidenceTierBadge(tier) {
+  if (tier === 'verified_evidence') {
+    return `<span class="badge badge-verified">[VERIFIED EVIDENCE]</span>`;
+  }
+  if (tier === 'practitioner_observation') {
+    return `<span class="badge badge-info">[PRACTITIONER OBSERVATION]</span>`;
+  }
+  if (tier === 'estimate') {
+    return `<span class="badge badge-warn">[ESTIMATE]</span>`;
+  }
+  return `<span class="badge badge-danger">[ASSUMPTION]</span>`;
+}
+
+function applyTheme(theme) {
+  state.theme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('straw_theme', theme);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) {
+    btn.textContent =
+      theme === 'light'
+        ? 'Appearance: Light Drafting (Switch to Dark)'
+        : 'Appearance: Dark Slate (Switch to Light)';
+  }
+}
+
+function switchTab(tabName) {
+  document.querySelectorAll('.nav-tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.workspace-panel').forEach((panel) => {
+    panel.classList.toggle('active', panel.id === `tab-${tabName}`);
+  });
+}
+
+async function fetchJson(url, options = {}) {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
+async function loadDashboard() {
+  const data = await fetchJson('/api/dashboard');
+  state.dashboard = data;
+
+  if (!state.selectedOpportunityId && data.opportunities.length > 0) {
+    state.selectedOpportunityId = data.opportunities[0].id;
+  }
+  if (!state.selectedProductId && data.products.length > 0) {
+    state.selectedProductId = data.products[0].id;
+  }
+
+  populateCategorySelects(data.catalogs.opportunity_categories);
+  renderHeaderStatus(data);
+  renderOverviewWorkspace(data);
+  renderOpportunitiesWorkspace(data);
+  await renderExecutionWorkspace(data);
+  await renderGrowthWorkspace(data);
+  renderApprovalsWorkspace(data);
+  renderCapabilitiesWorkspace(data);
+}
+
+function populateCategorySelects(categories) {
+  const filterSelect = document.getElementById('filter-opp-category');
+  const formSelect = document.getElementById('opp-category');
+
+  if (filterSelect && filterSelect.options.length <= 1) {
+    for (const cat of categories) {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      filterSelect.appendChild(opt);
+    }
+  }
+
+  if (formSelect && formSelect.options.length === 0) {
+    for (const cat of categories) {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      formSelect.appendChild(opt);
+    }
+  }
+}
+
+function renderHeaderStatus(data) {
+  const pillApprovals = document.getElementById('pill-approvals');
+  if (pillApprovals) {
+    pillApprovals.textContent = `Pending Approval Gates: ${data.summary_counts.pending_approvals}`;
+  }
+}
+
+function renderOverviewWorkspace(data) {
+  const kpiStrip = document.getElementById('overview-kpi-strip');
+  const c = data.summary_counts;
+
+  kpiStrip.innerHTML = `
+    <div class="kpi-cell">
+      <div class="kpi-label">Evaluated Opportunities</div>
+      <div class="kpi-value">${c.total_opportunities}</div>
+      <div class="kpi-sub">${c.approved_opportunities} Approved · ${c.evaluating_opportunities} Evaluating · ${c.rejected_opportunities} Rejected</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Active Products (15-Stage)</div>
+      <div class="kpi-value">${c.active_products}</div>
+      <div class="kpi-sub">Real task-effort completion tracking</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Pending Owner Gates</div>
+      <div class="kpi-value">${c.pending_approvals}</div>
+      <div class="kpi-sub">Hard financial &amp; public launch locks</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Owner Capability Areas</div>
+      <div class="kpi-value">${c.total_capabilities}</div>
+      <div class="kpi-sub">UX/UI, Figma Systems, IA, WP, AI Dev</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Institutional Memory</div>
+      <div class="kpi-value">${c.intelligence_records}</div>
+      <div class="kpi-sub">Decisions, rejections &amp; market findings</div>
+    </div>
+  `;
+
+  const oppTable = document.getElementById('overview-opportunities-table');
+  oppTable.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Opportunity &amp; Category</th>
+          <th>Score</th>
+          <th>Decision Engine Output</th>
+          <th>Evidence</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.opportunities
+          .map(
+            (opp) => `
+          <tr>
+            <td>
+              <strong>${escapeHtml(opp.title)}</strong>
+              <div class="dossier-item-meta">${escapeHtml(opp.category)} · Status: <code>${escapeHtml(opp.status.toUpperCase())}</code></div>
+            </td>
+            <td><strong>${opp.overall_score}/100</strong></td>
+            <td>${renderRecommendationBadge(opp.recommendation)}</td>
+            <td><code>${opp.evidence.filter((e) => e.evidence_tier === 'verified_evidence').length} verified</code> / ${opp.evidence.length} total</td>
+            <td>
+              <button type="button" class="btn btn-small" data-inspect-opp="${escapeHtml(opp.id)}">Inspect Dossier</button>
+            </td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+  `;
+
+  const prodList = document.getElementById('overview-products-list');
+  prodList.innerHTML = data.products
+    .map(
+      (prod) => `
+      <div class="dossier-item" style="margin-bottom: 10px;">
+        <div class="dossier-item-top">
+          <span class="dossier-item-title">${escapeHtml(prod.name)}</span>
+          <span class="badge badge-info">[STAGE ${prod.current_stage_number}/15: ${escapeHtml(prod.current_stage_name.toUpperCase())}]</span>
+        </div>
+        <div class="dossier-item-meta" style="margin-bottom: 6px;">
+          Real Completion: <strong>${prod.completion_pct}%</strong> (${prod.progress_metrics.completed_tasks}/${prod.progress_metrics.total_tasks} tasks · ${prod.progress_metrics.completed_estimated_hours}/${prod.progress_metrics.total_estimated_hours} hrs)
+        </div>
+        <div class="score-meter"><div class="score-meter-fill" style="width: ${prod.completion_pct}%"></div></div>
+      </div>
+    `
+    )
+    .join('');
+
+  const apprList = document.getElementById('overview-approvals-list');
+  if (data.pending_approvals.length === 0) {
+    apprList.innerHTML = `<p class="dossier-item-meta">All financial and public checkpoints are currently clear.</p>`;
+  } else {
+    apprList.innerHTML = data.pending_approvals
+      .map(
+        (req) => `
+        <div class="criteria-cell" style="margin-bottom: 8px;">
+          <strong>[GATE: PENDING OWNER APPROVAL] · ${escapeHtml(req.action_category.toUpperCase())} ($${req.financial_commitment_usd})</strong>
+          <div><strong>${escapeHtml(req.title)}</strong></div>
+          <div class="dossier-item-meta">${escapeHtml(req.description)}</div>
+          <div style="margin-top: 6px;">
+            <button type="button" class="btn btn-small btn-approve" data-decide-appr="${escapeHtml(req.id)}" data-decision="approved">Approve Commitment</button>
+            <button type="button" class="btn btn-small btn-reject" data-decide-appr="${escapeHtml(req.id)}" data-decision="rejected">Reject Commitment</button>
+          </div>
+        </div>
+      `
+      )
+      .join('');
+  }
+}
+
+function renderOpportunitiesWorkspace(data) {
+  const listContainer = document.getElementById('opportunity-cards-list');
+  const filtered = data.opportunities.filter((o) => {
+    if (state.filterStatus && o.status !== state.filterStatus) return false;
+    if (state.filterCategory && o.category !== state.filterCategory) return false;
+    return true;
+  });
+
+  listContainer.innerHTML = filtered
+    .map(
+      (opp) => `
+      <div class="dossier-item ${opp.id === state.selectedOpportunityId ? 'selected' : ''}" data-select-opp="${escapeHtml(opp.id)}">
+        <div class="dossier-item-top">
+          <span class="dossier-item-title">${escapeHtml(opp.title)}</span>
+          <strong>${opp.overall_score}/100</strong>
+        </div>
+        <div class="dossier-item-meta">${escapeHtml(opp.category)} · Status: <code>${escapeHtml(opp.status.toUpperCase())}</code></div>
+        <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+          ${renderRecommendationBadge(opp.recommendation)}
+          <span class="mono">Cap Fit: ${opp.capability_fit_detail.fit_score}/10</span>
+        </div>
+      </div>
+    `
+    )
+    .join('');
+
+  const selected =
+    data.opportunities.find((o) => o.id === state.selectedOpportunityId) ||
+    filtered[0] ||
+    data.opportunities[0];
+
+  const detailPane = document.getElementById('opportunity-detail-pane');
+  if (!selected) {
+    detailPane.innerHTML = `<p>No opportunity selected.</p>`;
+    return;
+  }
+
+  const sb = selected.score_breakdown;
+  const warningsHtml = [
+    ...(sb.blockers || []).map((b) => `<div class="badge badge-danger" style="display:block; margin-bottom:6px; white-space:normal;">[BLOCKER] ${escapeHtml(b)}</div>`),
+    ...(sb.warnings || []).map((w) => `<div class="badge badge-warn" style="display:block; margin-bottom:6px; white-space:normal;">[EPISTEMIC WARNING] ${escapeHtml(w)}</div>`)
+  ].join('');
+
+  detailPane.innerHTML = `
+    <div class="box-header">
+      <div>
+        <span class="mono">${escapeHtml(selected.category)} · ID: ${escapeHtml(selected.id)}</span>
+        <h3 style="font-size: 17px; margin-top: 2px;">${escapeHtml(selected.title)}</h3>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 22px; font-weight: 700;">${selected.overall_score} / 100</div>
+        ${renderRecommendationBadge(selected.recommendation)}
+      </div>
+    </div>
+
+    <div class="criteria-cell" style="margin-bottom: 12px;">
+      <strong>Transparent Decision Engine Rationale</strong>
+      <div>${escapeHtml(selected.decision_rationale)}</div>
+      <div style="margin-top: 6px;">${warningsHtml}</div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+      <button type="button" class="btn btn-small btn-approve" data-opp-status="${escapeHtml(selected.id)}" data-status="approved">Approve Opportunity</button>
+      <button type="button" class="btn btn-small btn-secondary" data-opp-status="${escapeHtml(selected.id)}" data-status="evaluating">Mark Evaluating</button>
+      <button type="button" class="btn btn-small btn-reject" data-opp-status="${escapeHtml(selected.id)}" data-status="rejected">Reject Weak Idea</button>
+      <button type="button" class="btn btn-small btn-primary" data-promote-opp="${escapeHtml(selected.id)}">Promote to 15-Stage Product Build</button>
+    </div>
+
+    <h4 class="sub-box-title">15-Criteria Opportunity Evaluation Matrix</h4>
+    <div class="criteria-grid">
+      <div class="criteria-cell"><strong>1. Problem Addressed</strong>${escapeHtml(selected.problem_statement)}</div>
+      <div class="criteria-cell"><strong>2. Target Audience</strong>${escapeHtml(selected.target_audience)}</div>
+      <div class="criteria-cell"><strong>3. Evidence of Demand</strong>${escapeHtml(selected.demand_summary)}</div>
+      <div class="criteria-cell"><strong>4. Existing Competitors</strong>${escapeHtml(selected.competitors_summary)}</div>
+      <div class="criteria-cell"><strong>5. Current Alternatives</strong>${escapeHtml(selected.alternatives_summary)}</div>
+      <div class="criteria-cell"><strong>6. Market Gaps</strong>${escapeHtml(selected.market_gaps)}</div>
+      <div class="criteria-cell"><strong>7. Differentiation Potential</strong>${escapeHtml(selected.differentiation_potential)}</div>
+      <div class="criteria-cell"><strong>8–10. Complexity, Time &amp; Op Cost</strong>Complexity: <code>${escapeHtml(selected.dev_complexity)}</code> · Est: <strong>${selected.estimated_dev_days} days</strong> · Op Cost: <strong>$${selected.operational_cost_monthly_usd}/mo</strong></div>
+      <div class="criteria-cell"><strong>11. Monetization Model</strong>${escapeHtml(selected.monetization_model)}</div>
+      <div class="criteria-cell"><strong>12. Acquisition Strategy</strong>${escapeHtml(selected.acquisition_strategy)}</div>
+      <div class="criteria-cell"><strong>13. Revenue Potential (Honest Note)</strong>${escapeHtml(selected.revenue_potential_notes)}</div>
+      <div class="criteria-cell"><strong>14. Main Risks</strong>${escapeHtml(selected.main_risks)}</div>
+      <div class="criteria-cell">
+        <strong>15. Owner Capability Fit (${selected.capability_fit_detail.fit_score}/10)</strong>
+        ${escapeHtml(selected.capability_fit_detail.summary)}
+        <div class="dossier-item-meta" style="margin-top:4px;">Difficulty: ${escapeHtml(selected.capability_fit_detail.execution_difficulty)}</div>
+      </div>
+    </div>
+
+    <h4 class="sub-box-title">11-Dimension Transparent Score Breakdown</h4>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th>Weight</th>
+          <th>Score (1–10)</th>
+          <th>Weighted Pts</th>
+          <th>Evaluation Criteria</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(sb.dimensions || [])
+          .map(
+            (d) => `
+          <tr>
+            <td><strong>${escapeHtml(d.label)}</strong></td>
+            <td>${d.weight_pct}%</td>
+            <td><strong>${d.score_out_of_10}/10</strong></td>
+            <td>+${d.weighted_points}</td>
+            <td class="dossier-item-meta">${escapeHtml(d.description)}</td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+
+    <hr class="structural-divider" />
+    <h4 class="sub-box-title">Market Research &amp; Evidence Ledger (${selected.evidence.length} Records)</h4>
+    <table class="data-table" style="margin-bottom: 12px;">
+      <thead>
+        <tr>
+          <th>Provenance Tier</th>
+          <th>Type</th>
+          <th>Claim Statement</th>
+          <th>Source Citation</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${selected.evidence
+          .map(
+            (ev) => `
+          <tr>
+            <td>${renderEvidenceTierBadge(ev.evidence_tier)}</td>
+            <td><code>${escapeHtml(ev.claim_type)}</code></td>
+            <td>${escapeHtml(ev.statement)}</td>
+            <td class="dossier-item-meta">${escapeHtml(ev.source_citation)}</td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+
+    <form id="form-add-evidence" data-opp-id="${escapeHtml(selected.id)}" class="structured-form">
+      <div class="form-row-3">
+        <div class="form-group">
+          <label for="ev-claim-type">Claim Type</label>
+          <select id="ev-claim-type" name="claim_type">
+            <option value="demand">Demand Signal</option>
+            <option value="competitor">Competitor Proof</option>
+            <option value="pricing">Pricing / Willingness to Pay</option>
+            <option value="audience">Audience Concentration</option>
+            <option value="risk">Risk / Counterevidence</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="ev-tier-select">Epistemic Provenance Tier</label>
+          <select id="ev-tier-select" name="evidence_tier">
+            <option value="verified_evidence">Verified Evidence (Uncaps Demand Score)</option>
+            <option value="practitioner_observation">Practitioner Observation</option>
+            <option value="estimate">Estimate</option>
+            <option value="assumption">Assumption</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="ev-source-input">Source URL or Reference (Required)</label>
+          <input type="text" id="ev-source-input" name="source_citation" required placeholder="e.g., WordPress Plugin Directory stats" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="ev-statement-input">Observed Evidence Statement (Required)</label>
+        <input type="text" id="ev-statement-input" name="statement" required placeholder="State the factual observation clearly without exaggeration" />
+      </div>
+      <button type="submit" class="btn btn-secondary btn-small">Attach Evidence &amp; Re-Score Opportunity</button>
+    </form>
+  `;
+}
+
+async function renderExecutionWorkspace(data) {
+  const selectEl = document.getElementById('select-active-product');
+  const container = document.getElementById('product-execution-container');
+
+  selectEl.innerHTML = data.products
+    .map(
+      (p) =>
+        `<option value="${escapeHtml(p.id)}" ${p.id === state.selectedProductId ? 'selected' : ''}>${escapeHtml(p.name)} (${p.completion_pct}%)</option>`
+    )
+    .join('');
+
+  const product = data.products.find((p) => p.id === state.selectedProductId) || data.products[0];
+  if (!product) {
+    container.innerHTML = `<div class="ledger-box"><p>No active products yet. Approve an opportunity and promote it to start the 15-stage product build.</p></div>`;
+    return;
+  }
+
+  const m = product.progress_metrics;
+
+  container.innerHTML = `
+    <div class="ledger-box" style="margin-bottom: 18px;">
+      <div class="box-header">
+        <div>
+          <span class="mono">Category: ${escapeHtml(product.category)} · Status: ${escapeHtml(product.status.toUpperCase())}</span>
+          <h3>${escapeHtml(product.name)} — ${escapeHtml(product.tagline)}</h3>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 22px; font-weight: 700;">${product.completion_pct}% Real Completion</div>
+          <span class="badge badge-info">[ACTIVE STAGE ${product.current_stage_number}/15: ${escapeHtml(product.current_stage_name.toUpperCase())}]</span>
+        </div>
+      </div>
+
+      <div class="score-meter" style="height: 10px; margin-bottom: 12px;">
+        <div class="score-meter-fill" style="width: ${product.completion_pct}%"></div>
+      </div>
+
+      <div class="criteria-grid">
+        <div class="criteria-cell"><strong>Positioning</strong>${escapeHtml(product.positioning)}</div>
+        <div class="criteria-cell"><strong>UX Architecture Spec</strong>${escapeHtml(product.ux_architecture_notes)}</div>
+        <div class="criteria-cell"><strong>Pragmatic Tech Stack</strong>${escapeHtml(product.tech_stack)}</div>
+        <div class="criteria-cell">
+          <strong>Effort &amp; Remaining Work</strong>
+          Completed Tasks: <strong>${m.completed_tasks}/${m.total_tasks}</strong> ·
+          Completed Effort: <strong>${m.completed_estimated_hours}/${m.total_estimated_hours} hrs</strong> ·
+          Remaining Effort: <strong>${m.remaining_estimated_hours} hrs</strong> ·
+          Actual Logged: <strong>${m.total_actual_hours} hrs</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="ledger-box">
+      <div class="box-header">
+        <h3>15-Stage Product Development Workflow, Milestones &amp; Acceptance Criteria</h3>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Stage &amp; Phase</th>
+            <th>Milestone &amp; Task</th>
+            <th>Effort (Est / Actual)</th>
+            <th>Dependencies &amp; Risks</th>
+            <th>Acceptance Criteria</th>
+            <th>Status Control</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${product.tasks
+            .map(
+              (t) => `
+            <tr>
+              <td>
+                <strong>Stage ${t.stage_number}: ${escapeHtml(t.stage_name)}</strong>
+                <div class="dossier-item-meta">${escapeHtml(t.phase_name)}</div>
+              </td>
+              <td>
+                <strong>${escapeHtml(t.milestone_name)}</strong>
+                <div>${escapeHtml(t.title)}</div>
+              </td>
+              <td class="mono">${t.estimated_hours}h est / ${t.actual_hours}h actual</td>
+              <td class="dossier-item-meta">
+                <div><strong>Dep:</strong> ${escapeHtml(t.dependencies)}</div>
+                <div><strong>Risk:</strong> ${escapeHtml(t.risks)}</div>
+              </td>
+              <td class="dossier-item-meta">${escapeHtml(t.acceptance_criteria)}</td>
+              <td>
+                <select class="task-status-select" data-task-id="${escapeHtml(t.id)}" data-est="${t.estimated_hours}" aria-label="Status for Stage ${t.stage_number} ${escapeHtml(t.stage_name)}">
+                  <option value="todo" ${t.status === 'todo' ? 'selected' : ''}>To Do</option>
+                  <option value="in_progress" ${t.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                  <option value="blocked" ${t.status === 'blocked' ? 'selected' : ''}>Blocked</option>
+                  <option value="done" ${t.status === 'done' ? 'selected' : ''}>Done (Verified)</option>
+                </select>
+              </td>
+            </tr>
+          `
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function renderGrowthWorkspace(data) {
+  const container = document.getElementById('growth-workspace-container');
+  const product = data.products.find((p) => p.id === state.selectedProductId) || data.products[0];
+  if (!product) {
+    container.innerHTML = `<div class="ledger-box"><p>Promote an approved opportunity into an active product to configure acquisition channels and monetization.</p></div>`;
+    return;
+  }
+
+  const gw = await fetchJson(`/api/products/${encodeURIComponent(product.id)}/growth`);
+
+  container.innerHTML = `
+    <div class="split-grid-2col">
+      <div class="ledger-box">
+        <div class="box-header">
+          <h3>Acquisition &amp; Distribution Channels — ${escapeHtml(product.name)}</h3>
+        </div>
+        <p class="dossier-item-meta">
+          SEO is one channel, not the identity of the product. Paid channels automatically trigger an Owner Financial Approval Gate.
+        </p>
+        <table class="data-table" style="margin-bottom: 14px;">
+          <thead>
+            <tr>
+              <th>Channel &amp; Category</th>
+              <th>Fit</th>
+              <th>Monthly Cost</th>
+              <th>Status</th>
+              <th>Playbook &amp; Expected Return</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${gw.channels
+              .map(
+                (ch) => `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(ch.channel_name)}</strong>
+                  <div class="dossier-item-meta">Category: <code>${escapeHtml(ch.channel_category)}</code></div>
+                </td>
+                <td><strong>${ch.fit_score}/10</strong></td>
+                <td>$${ch.estimated_monthly_cost_usd}/mo</td>
+                <td>
+                  <span class="badge ${ch.status === 'gated_approval' ? 'badge-warn' : 'badge-verified'}">
+                    [${escapeHtml(ch.status.toUpperCase())}]
+                  </span>
+                </td>
+                <td class="dossier-item-meta">
+                  <div><strong>ROI Rationale:</strong> ${escapeHtml(ch.expected_return_rationale)}</div>
+                  <div><strong>Playbook:</strong> ${escapeHtml(ch.execution_playbook)}</div>
+                </td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+
+        <h4 class="sub-box-title">Add Acquisition Channel</h4>
+        <form id="form-add-channel" data-prod-id="${escapeHtml(product.id)}" class="structured-form">
+          <div class="form-row-3">
+            <div class="form-group">
+              <label for="gc-name">Channel Name (Required)</label>
+              <input type="text" id="gc-name" name="channel_name" required placeholder="e.g., Reddit r/designsystems Teardown" />
+            </div>
+            <div class="form-group">
+              <label for="gc-cat">Channel Category</label>
+              <select id="gc-cat" name="channel_category">
+                <option value="product_directories">Product Directories &amp; Ecosystems</option>
+                <option value="search_intent">Search Intent / Utility SEO</option>
+                <option value="community_distribution">Community Distribution</option>
+                <option value="content_marketing">Content Marketing</option>
+                <option value="email_marketing">Email Marketing</option>
+                <option value="partnerships">Partnerships &amp; Affiliates</option>
+                <option value="social_media">Organic Social Media</option>
+                <option value="paid_advertising">Paid Advertising (Gated Approval)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="gc-cost">Est. Monthly Cost (USD)</label>
+              <input type="number" id="gc-cost" name="estimated_monthly_cost_usd" min="0" value="0" required />
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="gc-rationale">Expected Return Rationale (Required)</label>
+              <input type="text" id="gc-rationale" name="expected_return_rationale" required placeholder="Why this channel reaches buyers efficiently" />
+            </div>
+            <div class="form-group">
+              <label for="gc-playbook">Execution Playbook (Required)</label>
+              <input type="text" id="gc-playbook" name="execution_playbook" required placeholder="Concrete execution steps" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-secondary btn-small">Add Distribution Channel</button>
+        </form>
+      </div>
+
+      <div class="ledger-box">
+        <div class="box-header">
+          <h3>Monetization Strategy &amp; Honest Performance Telemetry</h3>
+        </div>
+        <div class="criteria-cell" style="margin-bottom: 12px;">
+          <strong>Active Monetization Model: ${escapeHtml(product.monetization_model)}</strong>
+          <div class="dossier-item-meta">${escapeHtml(product.monetization_tradeoffs)}</div>
+        </div>
+
+        <h4 class="sub-box-title">Comparative Monetization Models &amp; Tradeoffs</h4>
+        <div class="dossier-list" style="margin-bottom: 14px;">
+          ${gw.monetization_recommendations
+            .slice(0, 3)
+            .map(
+              (m) => `
+            <div class="criteria-cell">
+              <strong>${escapeHtml(m.model)} (${escapeHtml(m.recommended_price_band)}) ${m.is_category_match ? '— [CATEGORY MATCH]' : ''}</strong>
+              <div class="dossier-item-meta"><strong>Pros:</strong> ${escapeHtml(m.pros)}</div>
+              <div class="dossier-item-meta"><strong>Tradeoffs:</strong> ${escapeHtml(m.cons)}</div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+
+        <h4 class="sub-box-title">Business Performance Ledger (Never Fabricated)</h4>
+        <p class="dossier-item-meta">${escapeHtml(gw.honest_telemetry_status)}</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Visitors</th>
+              <th>Conv %</th>
+              <th>Revenue</th>
+              <th>Op Cost</th>
+              <th>Provenance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${gw.metrics
+              .map(
+                (pm) => `
+              <tr>
+                <td><strong>${escapeHtml(pm.period_label)}</strong><div class="dossier-item-meta">${escapeHtml(pm.notes)}</div></td>
+                <td>${pm.visitors === null ? '<code>N/A</code>' : pm.visitors}</td>
+                <td>${pm.conversion_rate_pct === null ? '<code>N/A</code>' : `${pm.conversion_rate_pct}%`}</td>
+                <td><strong>$${pm.revenue_usd ?? 0}</strong></td>
+                <td>$${pm.operating_cost_usd ?? 0}</td>
+                <td><span class="badge badge-info">[${escapeHtml(pm.data_provenance)}]</span></td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderApprovalsWorkspace(data) {
+  const listEl = document.getElementById('approvals-queue-list');
+  listEl.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Gate Status</th>
+          <th>Category &amp; Financial Impact</th>
+          <th>Commitment Details</th>
+          <th>Owner Decision Control</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.all_approvals
+          .map(
+            (req) => `
+          <tr>
+            <td>
+              <span class="badge ${
+                req.status === 'approved'
+                  ? 'badge-verified'
+                  : req.status === 'rejected'
+                    ? 'badge-danger'
+                    : 'badge-warn'
+              }">[GATE: ${escapeHtml(req.status.toUpperCase())}]</span>
+            </td>
+            <td>
+              <code>${escapeHtml(req.action_category)}</code>
+              <div><strong>$${req.financial_commitment_usd} USD</strong></div>
+            </td>
+            <td>
+              <strong>${escapeHtml(req.title)}</strong>
+              <div class="dossier-item-meta">${escapeHtml(req.description)}</div>
+              ${
+                req.owner_decision_notes
+                  ? `<div class="dossier-item-meta"><strong>Owner Notes:</strong> ${escapeHtml(req.owner_decision_notes)}</div>`
+                  : ''
+              }
+            </td>
+            <td>
+              ${
+                req.status === 'pending'
+                  ? `
+                <button type="button" class="btn btn-small btn-approve" data-decide-appr="${escapeHtml(req.id)}" data-decision="approved">Approve</button>
+                <button type="button" class="btn btn-small btn-reject" data-decide-appr="${escapeHtml(req.id)}" data-decision="rejected">Reject</button>
+              `
+                  : `<span class="mono">Decided: ${escapeHtml(req.decided_at ? req.decided_at.slice(0, 10) : 'Recorded')}</span>`
+              }
+            </td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderCapabilitiesWorkspace(data) {
+  const profileCard = document.getElementById('owner-profile-card');
+  const p = data.owner.profile;
+
+  profileCard.innerHTML = `
+    <div class="criteria-cell" style="margin-bottom: 12px;">
+      <strong>Primary Strategic Direction: ${escapeHtml(p.primary_direction)}</strong>
+      <div style="margin-top: 4px;">${escapeHtml(p.engineering_constraint_summary)}</div>
+      <div class="dossier-item-meta" style="margin-top: 4px;"><strong>Secondary Options:</strong> ${escapeHtml(p.secondary_options.join(' · '))}</div>
+    </div>
+  `;
+
+  const capTable = document.getElementById('capabilities-matrix-table');
+  capTable.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>Category</th>
+          <th>Proficiency</th>
+          <th>Execution Leverage &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.owner.capabilities
+          .map(
+            (cap) => `
+          <tr>
+            <td><strong>${escapeHtml(cap.name)}</strong></td>
+            <td><code>${escapeHtml(cap.category)}</code></td>
+            <td><strong>${cap.proficiency_level} / 5</strong></td>
+            <td>
+              <span class="badge badge-info">[${escapeHtml(cap.execution_leverage)}]</span>
+              <div class="dossier-item-meta" style="margin-top: 3px;">${escapeHtml(cap.notes)}</div>
+            </td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+  `;
+
+  const biList = document.getElementById('intelligence-memory-list');
+  biList.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Type &amp; Provenance</th>
+          <th>Title &amp; Summary</th>
+          <th>Future Recommendation Implication</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.recent_intelligence
+          .map(
+            (entry) => `
+          <tr>
+            <td>
+              <code>${escapeHtml(entry.entry_type)}</code>
+              <div style="margin-top: 4px;">${renderEvidenceTierBadge(entry.evidence_tier)}</div>
+            </td>
+            <td>
+              <strong>${escapeHtml(entry.title)}</strong>
+              <div class="dossier-item-meta">${escapeHtml(entry.summary)}</div>
+            </td>
+            <td class="dossier-item-meta">${escapeHtml(entry.future_implication)}</td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// --- EVENT LISTENERS ---
+document.addEventListener('DOMContentLoaded', () => {
+  applyTheme(state.theme);
+
+  document.getElementById('theme-toggle-btn').addEventListener('click', () => {
+    applyTheme(state.theme === 'light' ? 'dark' : 'light');
+  });
+
+  document.querySelectorAll('.nav-tab').forEach((btn) => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  document.body.addEventListener('click', async (e) => {
+    const gotoBtn = e.target.closest('[data-goto-tab]');
+    if (gotoBtn) {
+      switchTab(gotoBtn.dataset.gotoTab);
+      return;
+    }
+
+    const inspectBtn = e.target.closest('[data-inspect-opp]');
+    if (inspectBtn) {
+      state.selectedOpportunityId = inspectBtn.dataset.inspectOpp;
+      switchTab('opportunities');
+      renderOpportunitiesWorkspace(state.dashboard);
+      return;
+    }
+
+    const selectOppCard = e.target.closest('[data-select-opp]');
+    if (selectOppCard) {
+      state.selectedOpportunityId = selectOppCard.dataset.selectOpp;
+      renderOpportunitiesWorkspace(state.dashboard);
+      return;
+    }
+
+    const statusBtn = e.target.closest('[data-opp-status]');
+    if (statusBtn) {
+      const oppId = statusBtn.dataset.oppStatus;
+      const newStatus = statusBtn.dataset.status;
+      await fetchJson(`/api/opportunities/${encodeURIComponent(oppId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: newStatus,
+          rejection_reason:
+            newStatus === 'rejected'
+              ? 'Rejected by owner after evaluating 11-dimension score and evidence.'
+              : ''
+        })
+      });
+      showFeedback(`Opportunity status updated to ${newStatus.toUpperCase()}.`);
+      await loadDashboard();
+      return;
+    }
+
+    const promoteBtn = e.target.closest('[data-promote-opp]');
+    if (promoteBtn) {
+      const oppId = promoteBtn.dataset.promoteOpp;
+      const res = await fetchJson(`/api/opportunities/${encodeURIComponent(oppId)}/promote`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      state.selectedProductId = res.product.id;
+      showFeedback(`Promoted "${res.product.name}" into active 15-stage product execution!`);
+      await loadDashboard();
+      switchTab('execution');
+      return;
+    }
+
+    const decideApprBtn = e.target.closest('[data-decide-appr]');
+    if (decideApprBtn) {
+      const apprId = decideApprBtn.dataset.decideAppr;
+      const decision = decideApprBtn.dataset.decision;
+      await fetchJson(`/api/approvals/${encodeURIComponent(apprId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          decision,
+          owner_decision_notes: `Owner explicitly marked ${decision} via STRAW Command Workspace.`
+        })
+      });
+      showFeedback(`Approval checkpoint marked as ${decision.toUpperCase()}.`);
+      await loadDashboard();
+    }
+  });
+
+  document.body.addEventListener('change', async (e) => {
+    if (e.target.id === 'filter-opp-status') {
+      state.filterStatus = e.target.value;
+      renderOpportunitiesWorkspace(state.dashboard);
+    } else if (e.target.id === 'filter-opp-category') {
+      state.filterCategory = e.target.value;
+      renderOpportunitiesWorkspace(state.dashboard);
+    } else if (e.target.id === 'select-active-product') {
+      state.selectedProductId = e.target.value;
+      await renderExecutionWorkspace(state.dashboard);
+      await renderGrowthWorkspace(state.dashboard);
+    } else if (e.target.classList.contains('task-status-select')) {
+      const taskId = e.target.dataset.taskId;
+      const newStatus = e.target.value;
+      const est = Number(e.target.dataset.est) || 2;
+      await fetchJson(`/api/tasks/${encodeURIComponent(taskId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: newStatus,
+          actual_hours: newStatus === 'done' ? est : 0
+        })
+      });
+      showFeedback(`Task updated to ${newStatus.toUpperCase()} — real completion percentage recalculated.`);
+      await loadDashboard();
+    }
+  });
+
+  document.body.addEventListener('submit', async (e) => {
+    if (e.target.id === 'form-new-opportunity') {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const dimInputs = {};
+      e.target.querySelectorAll('[data-dim]').forEach((inp) => {
+        dimInputs[inp.dataset.dim] = Number(inp.value);
+      });
+
+      const evStatement = fd.get('initial_evidence_statement')?.trim();
+      const evidence = evStatement
+        ? [
+            {
+              claim_type: 'demand',
+              statement: evStatement,
+              evidence_tier: fd.get('initial_evidence_tier'),
+              source_citation: fd.get('initial_evidence_source')?.trim() || 'Initial intake citation'
+            }
+          ]
+        : [];
+
+      const res = await fetchJson('/api/opportunities', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: fd.get('title'),
+          category: fd.get('category'),
+          dev_complexity: fd.get('dev_complexity'),
+          problem_statement: fd.get('problem_statement'),
+          target_audience: fd.get('target_audience'),
+          demand_summary: fd.get('demand_summary'),
+          competitors_summary: fd.get('competitors_summary'),
+          alternatives_summary: fd.get('alternatives_summary'),
+          market_gaps: fd.get('market_gaps'),
+          differentiation_potential: fd.get('differentiation_potential'),
+          estimated_dev_days: Number(fd.get('estimated_dev_days')),
+          operational_cost_monthly_usd: Number(fd.get('operational_cost_monthly_usd')),
+          monetization_model: fd.get('monetization_model'),
+          acquisition_strategy: fd.get('acquisition_strategy'),
+          revenue_potential_notes: fd.get('revenue_potential_notes'),
+          main_risks: fd.get('main_risks'),
+          dimension_inputs: dimInputs,
+          evidence
+        })
+      });
+
+      state.selectedOpportunityId = res.opportunity.id;
+      e.target.reset();
+      showFeedback(
+        `Evaluated "${res.opportunity.title}": Score ${res.opportunity.overall_score}/100 (${res.opportunity.recommendation})`
+      );
+      await loadDashboard();
+    } else if (e.target.id === 'form-add-evidence') {
+      e.preventDefault();
+      const oppId = e.target.dataset.oppId;
+      const fd = new FormData(e.target);
+      const res = await fetchJson(`/api/opportunities/${encodeURIComponent(oppId)}/evidence`, {
+        method: 'POST',
+        body: JSON.stringify({
+          claim_type: fd.get('claim_type'),
+          evidence_tier: fd.get('evidence_tier'),
+          source_citation: fd.get('source_citation'),
+          statement: fd.get('statement')
+        })
+      });
+      showFeedback(
+        `Logged market evidence. Re-calculated score: ${res.opportunity.overall_score}/100 (${res.opportunity.recommendation}).`
+      );
+      await loadDashboard();
+    } else if (e.target.id === 'form-add-channel') {
+      e.preventDefault();
+      const prodId = e.target.dataset.prodId;
+      const fd = new FormData(e.target);
+      await fetchJson(`/api/products/${encodeURIComponent(prodId)}/growth`, {
+        method: 'POST',
+        body: JSON.stringify({
+          channel_name: fd.get('channel_name'),
+          channel_category: fd.get('channel_category'),
+          estimated_monthly_cost_usd: Number(fd.get('estimated_monthly_cost_usd')),
+          expected_return_rationale: fd.get('expected_return_rationale'),
+          execution_playbook: fd.get('execution_playbook')
+        })
+      });
+      showFeedback('Added distribution channel (paid channels automatically queued in Approval Gates).');
+      await loadDashboard();
+    } else if (e.target.id === 'form-new-approval') {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await fetchJson('/api/approvals', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: fd.get('title'),
+          action_category: fd.get('action_category'),
+          financial_commitment_usd: Number(fd.get('financial_commitment_usd')),
+          description: fd.get('description')
+        })
+      });
+      e.target.reset();
+      showFeedback('Registered new gated action in the Owner Approval Queue.');
+      await loadDashboard();
+    } else if (e.target.id === 'form-add-capability') {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await fetchJson('/api/capabilities', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: fd.get('name'),
+          category: fd.get('category'),
+          proficiency_level: Number(fd.get('proficiency_level')),
+          execution_leverage: fd.get('execution_leverage'),
+          notes: fd.get('notes')
+        })
+      });
+      e.target.reset();
+      showFeedback('Owner capability saved to profile.');
+      await loadDashboard();
+    } else if (e.target.id === 'form-add-intelligence') {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      await fetchJson('/api/intelligence', {
+        method: 'POST',
+        body: JSON.stringify({
+          entry_type: fd.get('entry_type'),
+          evidence_tier: fd.get('evidence_tier'),
+          title: fd.get('title'),
+          summary: fd.get('summary'),
+          future_implication: fd.get('future_implication')
+        })
+      });
+      e.target.reset();
+      showFeedback('Logged entry to Personal Business Intelligence Memory.');
+      await loadDashboard();
+    }
+  });
+
+  loadDashboard();
+});

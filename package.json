@@ -1,0 +1,22 @@
+{
+  "name": "straw",
+  "version": "0.1.0",
+  "description": "STRAW — Personal AI Business Opportunity Discovery, Evaluation, Product Execution, and Growth Operating System",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test tests/*.test.js",
+    "audit:db": "node src/cli.js status"
+  },
+  "author": "Zak (zakshub)",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zakshub/straw.git"
+  }
+}
