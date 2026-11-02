@@ -25,6 +25,7 @@
 │   │   ├── growth-monetization-engine.js # Acquisition Channels, Monetization Models & Honest Metrics Ledger
 │   │   ├── approval-engine.js        # Mandatory Human Approval Gate & Financial/Public Control Ledger
 │   │   ├── intelligence-engine.js    # Personal Business Intelligence, Decision Log & Anti-Repeat Guard
+│   │   ├── research-engine.js        # Phase 7: Real-World Research, Evidence Verification & 10-Step Dossier Engine
 │   │   └── ai-orchestrator.js        # Replaceable AI Provider Layer (Local Deterministic + LLM Adapters)
 │   ├── public/
 │   │   ├── index.html                # Semantic, WCAG 2.2-grounded Business Workspace shell

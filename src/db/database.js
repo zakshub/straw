@@ -34,6 +34,13 @@ export function getDatabase() {
   return defaultDbInstance;
 }
 
+function ensureColumn(db, tableName, columnName, columnDef) {
+  const cols = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  if (!cols.some((c) => c.name === columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef};`);
+  }
+}
+
 export function runMigrations(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS owner_profile (
@@ -96,8 +103,72 @@ export function runMigrations(db) {
       claim_type TEXT NOT NULL CHECK (claim_type IN ('demand', 'competitor', 'pricing', 'audience', 'technical', 'risk')),
       statement TEXT NOT NULL,
       evidence_tier TEXT NOT NULL CHECK (evidence_tier IN ('verified_evidence', 'practitioner_observation', 'estimate', 'assumption')),
+      requested_evidence_tier TEXT NOT NULL DEFAULT 'assumption',
       source_citation TEXT NOT NULL,
+      source_url TEXT NOT NULL DEFAULT '',
+      source_name TEXT NOT NULL DEFAULT 'Unspecified Source',
+      supporting_excerpt TEXT NOT NULL DEFAULT '',
+      published_at TEXT,
       observed_at TEXT NOT NULL,
+      confidence_score REAL NOT NULL DEFAULT 0.35,
+      source_reliability_score REAL NOT NULL DEFAULT 0.5,
+      verification_status TEXT NOT NULL DEFAULT 'unverified' CHECK (verification_status IN (
+        'verified', 'pending_review', 'downgraded_unverified', 'stale', 'conflicting', 'rejected'
+      )),
+      verification_notes TEXT NOT NULL DEFAULT '',
+      research_methodology TEXT NOT NULL DEFAULT 'manual_entry',
+      stance TEXT NOT NULL DEFAULT 'supporting' CHECK (stance IN ('supporting', 'contradicting', 'neutral')),
+      is_stale INTEGER NOT NULL DEFAULT 0,
+      content_fingerprint TEXT NOT NULL DEFAULT '',
+      research_run_id TEXT,
+      FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS research_sources (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      source_type TEXT NOT NULL CHECK (source_type IN (
+        'standards_body', 'product_directory', 'public_forum', 'code_repository',
+        'competitor_pricing', 'customer_reviews', 'search_provider', 'industry_report'
+      )),
+      base_url TEXT NOT NULL,
+      adapter_key TEXT NOT NULL,
+      base_reliability_score REAL NOT NULL CHECK (base_reliability_score BETWEEN 0.0 AND 1.0),
+      requires_api_key INTEGER NOT NULL DEFAULT 0,
+      is_paid_service INTEGER NOT NULL DEFAULT 0,
+      rate_limit_rpm INTEGER NOT NULL DEFAULT 30,
+      terms_and_robots_note TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS research_runs (
+      id TEXT PRIMARY KEY,
+      query_topic TEXT NOT NULL,
+      target_category TEXT NOT NULL,
+      opportunity_id TEXT,
+      methodology TEXT NOT NULL,
+      sources_queried_json TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL CHECK (status IN ('completed', 'partial', 'failed_network', 'blocked_approval')),
+      findings_created_count INTEGER NOT NULL DEFAULT 0,
+      duplicates_skipped_count INTEGER NOT NULL DEFAULT 0,
+      conflicts_detected_count INTEGER NOT NULL DEFAULT 0,
+      ai_synthesis_json TEXT NOT NULL DEFAULT '{}',
+      execution_notes TEXT NOT NULL DEFAULT '',
+      started_at TEXT NOT NULL,
+      completed_at TEXT NOT NULL,
+      FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS research_dossiers (
+      id TEXT PRIMARY KEY,
+      opportunity_id TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      pipeline_steps_json TEXT NOT NULL,
+      evidence_quality_summary_json TEXT NOT NULL,
+      ai_synthesis_json TEXT NOT NULL DEFAULT '{}',
+      markdown_content TEXT NOT NULL,
+      generated_at TEXT NOT NULL,
       FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE CASCADE
     );
 
@@ -238,4 +309,20 @@ export function runMigrations(db) {
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     );
   `);
+
+  // Backward-compatible column migrations for existing market_evidence tables
+  ensureColumn(db, 'market_evidence', 'requested_evidence_tier', "TEXT NOT NULL DEFAULT 'assumption'");
+  ensureColumn(db, 'market_evidence', 'source_url', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'market_evidence', 'source_name', "TEXT NOT NULL DEFAULT 'Unspecified Source'");
+  ensureColumn(db, 'market_evidence', 'supporting_excerpt', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'market_evidence', 'published_at', 'TEXT');
+  ensureColumn(db, 'market_evidence', 'confidence_score', 'REAL NOT NULL DEFAULT 0.35');
+  ensureColumn(db, 'market_evidence', 'source_reliability_score', 'REAL NOT NULL DEFAULT 0.5');
+  ensureColumn(db, 'market_evidence', 'verification_status', "TEXT NOT NULL DEFAULT 'unverified'");
+  ensureColumn(db, 'market_evidence', 'verification_notes', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'market_evidence', 'research_methodology', "TEXT NOT NULL DEFAULT 'manual_entry'");
+  ensureColumn(db, 'market_evidence', 'stance', "TEXT NOT NULL DEFAULT 'supporting'");
+  ensureColumn(db, 'market_evidence', 'is_stale', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'market_evidence', 'content_fingerprint', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'market_evidence', 'research_run_id', 'TEXT');
 }

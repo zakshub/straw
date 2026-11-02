@@ -33,7 +33,10 @@ export function ensureSeeded(db, engines) {
   }
 
   // 3. Seed Opportunities across diverse categories
-  const { opportunityEngine, executionEngine, growthEngine } = engines;
+  const { opportunityEngine, executionEngine, growthEngine, researchEngine } = engines;
+  if (researchEngine) {
+    researchEngine.ensureDefaultSources();
+  }
 
   // Opportunity 1: Approved & Promoted to Active Product
   const opp1 = opportunityEngine.createOpportunity({
@@ -90,16 +93,28 @@ export function ensureSeeded(db, engines) {
       {
         claim_type: 'demand',
         statement:
-          'W3C WCAG 2.2 normative specification (2.5.3 Label in Name, 3.3.2 Labels or Instructions) and European Accessibility Act enforcement mandate verifiable form labeling for commercial digital products.',
+          'W3C WCAG 2.2 normative specification (2.5.3 Label in Name, 3.3.2 Labels or Instructions) mandates verifiable programmatic form labeling for commercial web interfaces.',
         evidence_tier: 'verified_evidence',
-        source_citation: 'https://www.w3.org/TR/2024/REC-WCAG22-20241212/ (Verified in Sentinel wcag-labels pilot)'
+        source_url: 'https://www.w3.org/TR/2024/REC-WCAG22-20241212/#label-in-name',
+        source_name: 'W3C Normative Standard',
+        supporting_excerpt:
+          'WCAG 2.2 Success Criterion 2.5.3 (Level A): For user interface components with labels that include text or images of text, the name contains the text that is presented visually.',
+        published_at: '2026-01-15T00:00:00Z',
+        research_methodology: 'normative_standard_review',
+        source_citation: 'https://www.w3.org/TR/2024/REC-WCAG22-20241212/#label-in-name'
       },
       {
         claim_type: 'competitor',
         statement:
-          'Commercial Figma design systems consistently rank among top-grossing digital assets on Gumroad, Lemon Squeezy, and Figma Community when tied to concrete engineering handoff savings.',
+          'Commercial Figma design systems consistently price single/team licenses between $69 and $299 when tied to engineering handoff and accessibility compliance.',
         evidence_tier: 'practitioner_observation',
-        source_citation: 'Market scan of commercial Figma system pricing ($69–$299 tier benchmark)'
+        source_url: 'https://www.figma.com/community/design-systems',
+        source_name: 'Figma Community Marketplace',
+        supporting_excerpt:
+          'Observed commercial design system pricing benchmarks across Figma Community resource listings.',
+        published_at: '2026-09-20T00:00:00Z',
+        research_methodology: 'competitor_pricing_audit',
+        source_citation: 'https://www.figma.com/community/design-systems'
       }
     ]
   });
@@ -159,16 +174,28 @@ export function ensureSeeded(db, engines) {
       {
         claim_type: 'audience',
         statement:
-          'WordPress powers over 40% of the web, with strong ongoing migration from legacy page builders toward lightweight native block systems.',
+          'WordPress powers over 43% of all websites tracked by W3Techs, creating a massive addressable install base for native Gutenberg block plugins.',
         evidence_tier: 'verified_evidence',
-        source_citation: 'W3Techs CMS Usage Statistics & WordPress.org Block Directory trends'
+        source_url: 'https://w3techs.com/technologies/details/cm-wordpress',
+        source_name: 'W3Techs Web Technology Surveys',
+        supporting_excerpt:
+          'WordPress is used by 62.0%+ of all websites whose content management system we know, which is 43.4% of all websites.',
+        published_at: '2026-10-01T00:00:00Z',
+        research_methodology: 'direct_url_inspection',
+        source_citation: 'https://w3techs.com/technologies/details/cm-wordpress'
       },
       {
         claim_type: 'pricing',
         statement:
-          'Freemium WordPress plugins with a $59–$149/yr Pro tier represent a proven monetization standard in the WP ecosystem.',
+          'Freemium WordPress block plugins with a $59–$149/yr Pro tier represent a proven monetization standard in the WordPress plugin directory.',
         evidence_tier: 'practitioner_observation',
-        source_citation: 'WordPress commercial plugin pricing analysis'
+        source_url: 'https://wordpress.org/plugins/browse/blocks/',
+        source_name: 'WordPress.org Block Directory',
+        supporting_excerpt:
+          'Inspection of top-installed Gutenberg block plugins on WordPress.org showing standard annual licensing tiers.',
+        published_at: '2026-10-10T00:00:00Z',
+        research_methodology: 'competitor_pricing_audit',
+        source_citation: 'https://wordpress.org/plugins/browse/blocks/'
       }
     ]
   });
@@ -289,7 +316,13 @@ export function ensureSeeded(db, engines) {
         statement:
           'Direct LLM interfaces (ChatGPT, Claude, Gemini) already bundle general writing and social drafting at $0–$20/mo, commoditizing thin wrappers.',
         evidence_tier: 'verified_evidence',
-        source_citation: 'Market competitive saturation audit 2026'
+        source_url: 'https://openai.com/chatgpt/pricing/',
+        source_name: 'OpenAI Public Pricing Page',
+        supporting_excerpt:
+          'ChatGPT Free and Plus ($20/mo) tiers include direct text drafting, web browsing, and custom GPTs without third-party wrapper fees.',
+        published_at: '2026-09-01T00:00:00Z',
+        research_methodology: 'competitor_pricing_audit',
+        source_citation: 'https://openai.com/chatgpt/pricing/'
       }
     ]
   });
@@ -403,6 +436,10 @@ export function ensureSeeded(db, engines) {
     demand_evidence_tier: 'verified_evidence',
     status: 'drafting'
   });
+
+  if (researchEngine) {
+    researchEngine.generateAndSaveResearchDossier(opp1.opportunity.id);
+  }
 
   return { seeded: true };
 }

@@ -32,6 +32,9 @@ function renderRecommendationBadge(rec) {
   if (rec === 'NEEDS_EVIDENCE') {
     return `<span class="badge badge-warn">[NEEDS VERIFIED EVIDENCE]</span>`;
   }
+  if (rec === 'HOLD_CONFLICTING_EVIDENCE') {
+    return `<span class="badge badge-danger">[HOLD: CONFLICTING EVIDENCE]</span>`;
+  }
   if (rec === 'REJECT_WEAK_IDEA') {
     return `<span class="badge badge-danger">[REJECT WEAK IDEA]</span>`;
   }
@@ -100,6 +103,7 @@ async function loadDashboard() {
   renderHeaderStatus(data);
   renderOverviewWorkspace(data);
   renderOpportunitiesWorkspace(data);
+  renderResearchWorkspace(data);
   await renderExecutionWorkspace(data);
   await renderGrowthWorkspace(data);
   renderApprovalsWorkspace(data);
@@ -364,14 +368,21 @@ function renderOpportunitiesWorkspace(data) {
     </table>
 
     <hr class="structural-divider" />
-    <h4 class="sub-box-title">Market Research &amp; Evidence Ledger (${selected.evidence.length} Records)</h4>
+    <h4 class="sub-box-title">Market Research &amp; Attributed Evidence Ledger (${selected.evidence.length} Records · Confidence: ${Math.round((selected.evidence_quality_summary?.average_confidence_score || 0) * 100)}%)</h4>
+    <div class="dossier-item-meta" style="margin-bottom: 8px;">
+      Active Verified: <strong>${selected.evidence_quality_summary?.active_verified_count || 0}</strong> (${selected.evidence_quality_summary?.independent_verified_origins_count || 0} independent origin(s)) ·
+      Observations: <strong>${selected.evidence_quality_summary?.practitioner_observation_count || 0}</strong> ·
+      Downgraded Unverified: <strong>${selected.evidence_quality_summary?.downgraded_unverified_count || 0}</strong> ·
+      Stale: <strong>${selected.evidence_quality_summary?.stale_count || 0}</strong> ·
+      Contradicting: <strong>${selected.evidence_quality_summary?.contradicting_count || 0}</strong>
+    </div>
     <table class="data-table" style="margin-bottom: 12px;">
       <thead>
         <tr>
-          <th>Provenance Tier</th>
-          <th>Type</th>
-          <th>Claim Statement</th>
-          <th>Source Citation</th>
+          <th>Tier &amp; Verification</th>
+          <th>Stance &amp; Conf</th>
+          <th>Claim &amp; Supporting Excerpt</th>
+          <th>Attributed Source &amp; Dates</th>
         </tr>
       </thead>
       <tbody>
@@ -379,10 +390,28 @@ function renderOpportunitiesWorkspace(data) {
           .map(
             (ev) => `
           <tr>
-            <td>${renderEvidenceTierBadge(ev.evidence_tier)}</td>
-            <td><code>${escapeHtml(ev.claim_type)}</code></td>
-            <td>${escapeHtml(ev.statement)}</td>
-            <td class="dossier-item-meta">${escapeHtml(ev.source_citation)}</td>
+            <td>
+              ${renderEvidenceTierBadge(ev.evidence_tier)}
+              <div class="dossier-item-meta" style="margin-top:3px;">
+                Status: <code>${escapeHtml(ev.verification_status || 'verified')}</code>
+                ${ev.requested_evidence_tier && ev.requested_evidence_tier !== ev.evidence_tier ? `<br/>(Req: <code>${escapeHtml(ev.requested_evidence_tier)}</code>)` : ''}
+              </div>
+            </td>
+            <td>
+              <span class="badge ${ev.stance === 'contradicting' ? 'badge-danger' : 'badge-info'}">[${escapeHtml((ev.stance || 'supporting').toUpperCase())}]</span>
+              <div class="dossier-item-meta" style="margin-top:3px;">Conf: <strong>${Math.round((ev.confidence_score || 0.35) * 100)}%</strong></div>
+            </td>
+            <td>
+              <strong>[${escapeHtml(ev.claim_type)}]</strong> ${escapeHtml(ev.statement)}
+              ${ev.supporting_excerpt ? `<div class="dossier-item-meta" style="margin-top:3px;"><em>Excerpt:</em> "${escapeHtml(ev.supporting_excerpt)}"</div>` : ''}
+              ${ev.verification_notes ? `<div class="dossier-item-meta" style="margin-top:2px;"><em>QC Note:</em> ${escapeHtml(ev.verification_notes)}</div>` : ''}
+            </td>
+            <td class="dossier-item-meta">
+              <div><strong>${escapeHtml(ev.source_name || 'Source')}</strong></div>
+              ${ev.source_url ? `<div><a href="${escapeHtml(ev.source_url)}" target="_blank" rel="noopener">${escapeHtml(ev.source_url)}</a></div>` : `<div>${escapeHtml(ev.source_citation)}</div>`}
+              <div>Method: <code>${escapeHtml(ev.research_methodology || 'manual')}</code></div>
+              <div>Discovered: ${escapeHtml((ev.observed_at || '').slice(0, 10))} ${ev.published_at ? `· Pub: ${escapeHtml(ev.published_at.slice(0, 10))}` : ''}</div>
+            </td>
           </tr>
         `
           )
@@ -403,24 +432,48 @@ function renderOpportunitiesWorkspace(data) {
           </select>
         </div>
         <div class="form-group">
-          <label for="ev-tier-select">Epistemic Provenance Tier</label>
+          <label for="ev-tier-select">Requested Provenance Tier (Auto-Verified)</label>
           <select id="ev-tier-select" name="evidence_tier">
-            <option value="verified_evidence">Verified Evidence (Uncaps Demand Score)</option>
+            <option value="verified_evidence">Verified Evidence (Requires https:// URL + Excerpt)</option>
             <option value="practitioner_observation">Practitioner Observation</option>
             <option value="estimate">Estimate</option>
             <option value="assumption">Assumption</option>
           </select>
         </div>
         <div class="form-group">
-          <label for="ev-source-input">Source URL or Reference (Required)</label>
-          <input type="text" id="ev-source-input" name="source_citation" required placeholder="e.g., WordPress Plugin Directory stats" />
+          <label for="ev-stance-select">Evidence Stance</label>
+          <select id="ev-stance-select" name="stance">
+            <option value="supporting" selected>Supporting Demand / Viability</option>
+            <option value="contradicting">Contradicting / Counter-Evidence</option>
+            <option value="neutral">Neutral Observation</option>
+          </select>
         </div>
       </div>
-      <div class="form-group">
-        <label for="ev-statement-input">Observed Evidence Statement (Required)</label>
-        <input type="text" id="ev-statement-input" name="statement" required placeholder="State the factual observation clearly without exaggeration" />
+      <div class="form-row-3">
+        <div class="form-group">
+          <label for="ev-url-input">Original Source URL (https:// Required for Verified)</label>
+          <input type="text" id="ev-url-input" name="source_url" placeholder="https://wordpress.org/plugins/..." />
+        </div>
+        <div class="form-group">
+          <label for="ev-source-input">Source Name (Required)</label>
+          <input type="text" id="ev-source-input" name="source_citation" required placeholder="e.g., WordPress.org Plugin Directory" />
+        </div>
+        <div class="form-group">
+          <label for="ev-pub-date">Date Published (YYYY-MM-DD, Optional)</label>
+          <input type="text" id="ev-pub-date" name="published_at" placeholder="2026-10-15" />
+        </div>
       </div>
-      <button type="submit" class="btn btn-secondary btn-small">Attach Evidence &amp; Re-Score Opportunity</button>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label for="ev-statement-input">Original Claim Statement (Required)</label>
+          <input type="text" id="ev-statement-input" name="statement" required placeholder="State the factual observation clearly" />
+        </div>
+        <div class="form-group">
+          <label for="ev-excerpt-input">Supporting Excerpt / Factual Summary (&ge;15 chars for Verified)</label>
+          <input type="text" id="ev-excerpt-input" name="supporting_excerpt" placeholder="Direct factual excerpt or metric from the source" />
+        </div>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-small">Verify, Attach Evidence &amp; Re-Score Opportunity</button>
     </form>
 
     <hr class="structural-divider" />
@@ -485,6 +538,149 @@ function renderOpportunitiesWorkspace(data) {
       <button type="submit" class="btn btn-secondary btn-small">Add Competitor to Matrix</button>
     </form>
   `;
+}
+
+function renderResearchWorkspace(data) {
+  const oppSelect = document.getElementById('run-opp-select');
+  const sourceSelect = document.getElementById('run-source-select');
+
+  if (oppSelect) {
+    oppSelect.innerHTML =
+      `<option value="">Standalone Discovery Run</option>` +
+      data.opportunities
+        .map((o) => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.title)}</option>`)
+        .join('');
+  }
+
+  if (sourceSelect) {
+    sourceSelect.innerHTML = (data.research_sources || [])
+      .map(
+        (s) =>
+          `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)} (Rel: ${s.base_reliability_score} · ${
+            s.is_paid_service ? 'PAID/GATED' : 'Free Public'
+          })</option>`
+      )
+      .join('');
+  }
+
+  const sourcesTable = document.getElementById('research-sources-table');
+  if (sourcesTable) {
+    sourcesTable.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Source Name &amp; Type</th>
+            <th>Reliability</th>
+            <th>Rate Limit</th>
+            <th>Cost / Governance</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(data.research_sources || [])
+            .map(
+              (s) => `
+            <tr>
+              <td>
+                <strong>${escapeHtml(s.name)}</strong>
+                <div class="dossier-item-meta"><code>${escapeHtml(s.source_type)}</code> · ${escapeHtml(s.terms_and_robots_note)}</div>
+              </td>
+              <td><strong>${Math.round(s.base_reliability_score * 100)}%</strong></td>
+              <td><code>${s.rate_limit_rpm} req/min</code></td>
+              <td>
+                <span class="badge ${s.is_paid_service ? 'badge-warn' : 'badge-verified'}">
+                  [${s.is_paid_service ? 'PAID: REQUIRES OWNER APPROVAL' : 'FREE PUBLIC ACCESS'}]
+                </span>
+              </td>
+            </tr>
+          `
+            )
+            .join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  const runsList = document.getElementById('research-runs-list');
+  if (runsList) {
+    const runs = data.research_runs || [];
+    if (runs.length === 0) {
+      runsList.innerHTML = `<p class="dossier-item-meta">No discovery runs recorded yet. Launch a run above.</p>`;
+    } else {
+      runsList.innerHTML = runs
+        .map(
+          (r) => `
+        <div class="criteria-cell" style="margin-bottom: 8px;">
+          <strong>[${escapeHtml(r.status.toUpperCase())}] Query: "${escapeHtml(r.query_topic)}" (${escapeHtml(r.started_at.slice(0, 10))})</strong>
+          <div class="dossier-item-meta">
+            Sources: ${escapeHtml((r.sources_queried || []).join(', '))} ·
+            Findings Stored: <strong>${r.findings_created_count}</strong> ·
+            Duplicates Skipped: <strong>${r.duplicates_skipped_count}</strong> ·
+            Conflicts: <strong>${r.conflicts_detected_count}</strong>
+          </div>
+          <div class="dossier-item-meta">${escapeHtml(r.execution_notes)}</div>
+          ${
+            r.ai_synthesis && r.ai_synthesis.discussion_summary
+              ? `<div class="dossier-item-meta" style="margin-top:4px; padding-top:4px; border-top:1px dashed var(--border-color);">
+                  <span class="badge badge-info">[${escapeHtml(r.ai_synthesis.epistemic_label)}]</span>
+                  ${escapeHtml(r.ai_synthesis.discussion_summary)}
+                </div>`
+              : ''
+          }
+        </div>
+      `
+        )
+        .join('');
+    }
+  }
+
+  const libTable = document.getElementById('central-evidence-library-table');
+  if (libTable) {
+    const evList = data.evidence_library || [];
+    libTable.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Opportunity</th>
+            <th>Tier &amp; Verification Status</th>
+            <th>Confidence &amp; Stance</th>
+            <th>Claim, Excerpt &amp; Source URL</th>
+            <th>Manual Review Control</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${evList
+            .map(
+              (ev) => `
+            <tr>
+              <td><strong>${escapeHtml(ev.opportunity_title || ev.opportunity_id)}</strong></td>
+              <td>
+                ${renderEvidenceTierBadge(ev.evidence_tier)}
+                <div class="dossier-item-meta">Status: <code>${escapeHtml(ev.verification_status)}</code></div>
+              </td>
+              <td>
+                <strong>${Math.round((ev.confidence_score || 0.35) * 100)}%</strong>
+                <div class="dossier-item-meta">Rel: ${ev.source_reliability_score} · <code>${escapeHtml(ev.stance)}</code></div>
+              </td>
+              <td>
+                <div>${escapeHtml(ev.statement)}</div>
+                ${ev.supporting_excerpt ? `<div class="dossier-item-meta"><em>Excerpt:</em> "${escapeHtml(ev.supporting_excerpt)}"</div>` : ''}
+                <div class="dossier-item-meta">
+                  Source: <strong>${escapeHtml(ev.source_name)}</strong>
+                  ${ev.source_url ? `(<a href="${escapeHtml(ev.source_url)}" target="_blank" rel="noopener">${escapeHtml(ev.source_url)}</a>)` : ''}
+                </div>
+              </td>
+              <td>
+                <button type="button" class="btn btn-small btn-approve" data-review-ev="${escapeHtml(ev.id)}" data-ev-status="verified">Verify</button>
+                <button type="button" class="btn btn-small btn-reject" data-review-ev="${escapeHtml(ev.id)}" data-ev-status="rejected">Reject</button>
+              </td>
+            </tr>
+          `
+            )
+            .join('')}
+        </tbody>
+      </table>
+    `;
+  }
 }
 
 async function renderExecutionWorkspace(data) {
@@ -1060,6 +1256,26 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       showFeedback(`Approval checkpoint marked as ${decision.toUpperCase()}.`);
       await loadDashboard();
+      return;
+    }
+
+    const reviewEvBtn = e.target.closest('[data-review-ev]');
+    if (reviewEvBtn) {
+      const evId = reviewEvBtn.dataset.reviewEv;
+      const evStatus = reviewEvBtn.dataset.evStatus;
+      try {
+        await fetchJson(`/api/research/evidence/${encodeURIComponent(evId)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            verification_status: evStatus,
+            reviewer_notes: `Owner reviewed finding and set status to ${evStatus}.`
+          })
+        });
+        showFeedback(`Evidence verification status updated to ${evStatus.toUpperCase()}.`);
+        await loadDashboard();
+      } catch (err) {
+        showFeedback(`Verification Blocked: ${err.message}`);
+      }
     }
   });
 
@@ -1145,18 +1361,43 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const oppId = e.target.dataset.oppId;
       const fd = new FormData(e.target);
-      const res = await fetchJson(`/api/opportunities/${encodeURIComponent(oppId)}/evidence`, {
+      try {
+        const res = await fetchJson(`/api/opportunities/${encodeURIComponent(oppId)}/evidence`, {
+          method: 'POST',
+          body: JSON.stringify({
+            claim_type: fd.get('claim_type'),
+            evidence_tier: fd.get('evidence_tier'),
+            stance: fd.get('stance'),
+            source_url: fd.get('source_url'),
+            source_name: fd.get('source_citation'),
+            source_citation: fd.get('source_citation'),
+            published_at: fd.get('published_at') || null,
+            supporting_excerpt: fd.get('supporting_excerpt'),
+            statement: fd.get('statement'),
+            research_methodology: 'direct_url_inspection'
+          })
+        });
+        showFeedback(
+          `Processed finding (Classified: ${res.evidence.evidence_tier.toUpperCase()} | Status: ${res.evidence.verification_status}). New Score: ${res.opportunity.overall_score}/100.`
+        );
+        await loadDashboard();
+      } catch (err) {
+        showFeedback(`Evidence Guardrail: ${err.message}`);
+      }
+    } else if (e.target.id === 'form-discovery-run') {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const res = await fetchJson('/api/research/runs', {
         method: 'POST',
         body: JSON.stringify({
-          claim_type: fd.get('claim_type'),
-          evidence_tier: fd.get('evidence_tier'),
-          source_citation: fd.get('source_citation'),
-          statement: fd.get('statement')
+          query_topic: fd.get('query_topic'),
+          opportunity_id: fd.get('opportunity_id') || null,
+          source_ids: [fd.get('source_id')],
+          fetch_live_public: fd.get('fetch_live_public') === 'true',
+          allow_paid_apis: false
         })
       });
-      showFeedback(
-        `Logged market evidence. Re-calculated score: ${res.opportunity.overall_score}/100 (${res.opportunity.recommendation}).`
-      );
+      showFeedback(`Discovery Run "${res.run.query_topic}" finished with status: ${res.run.status.toUpperCase()}.`);
       await loadDashboard();
     } else if (e.target.id === 'form-add-competitor') {
       e.preventDefault();

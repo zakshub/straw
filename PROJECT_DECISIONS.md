@@ -21,6 +21,11 @@
 - **Context:** Section 10 mandates explicit owner approval before spending money, purchasing services, publishing public content, launching products, running ads, contacting customers, sending business communications, or making irreversible production changes.
 - **Decision:** Gated actions (such as transitioning a product to Stage 14/15 Launch, activating a paid acquisition channel, or committing monthly operational spend > $0) automatically generate a `pending` record in `approval_requests` and block execution until the owner explicitly approves or rejects the request with notes.
 
+## Decision 5: Phase 7 Strict Source Attribution & Evidence Verification Rules
+- **Date:** 2026-11-02
+- **Context:** Previously, `addEvidence` accepted a user-supplied `evidence_tier: 'verified_evidence'` string even if `source_citation` was an arbitrary non-URL string.
+- **Decision:** `verifyAndClassifyEvidence()` in `src/engines/research-engine.js` now enforces that a claim can only be classified as `verified_evidence` (`verification_status = 'verified'`) if it includes: (1) a valid public `http://` or `https://` URL (rejecting `localhost`, `example.com`, or plain-text strings), (2) a factual `supporting_excerpt` of at least 15 characters, (3) a non-stale timestamp (`<= 365` days for market claims), (4) source reliability `>= 0.50`, and (5) a non-AI methodology. Claims failing these rules are automatically downgraded (`downgraded_unverified` or `stale`). Duplicate findings are blocked via SHA-256 content fingerprinting, and contradicting findings trigger `HOLD_CONFLICTING_EVIDENCE`.
+
 ## Technical Risks & Constraints Register
 1. **Unverified External Market Data:** Without live paid API integrations (e.g., paid keyword/traffic APIs), market evidence must be entered or imported with explicit source links and provenance tiers. STRAW enforces this by never fabricating traffic or revenue statistics.
 2. **Single-Node SQLite Concurrency:** `node:sqlite` with `PRAGMA journal_mode = WAL` handles personal operating system concurrency effortlessly; if STRAW is ever deployed as a multi-tenant cloud SaaS, the storage adapter in `src/db/` can be swapped to PostgreSQL.

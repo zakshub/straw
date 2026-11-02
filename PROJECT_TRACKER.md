@@ -26,3 +26,13 @@
   3. [x] **Phase 4 (Growth & Monetization Operations):** Add `search_intent_clusters` planner (`POST /api/products/:id/clusters`) and honest Unit Economics / Break-Even calculator (`calculateUnitEconomics`).
   4. [x] **Phase 5 (Proactive AI Business Intelligence):** Implement `generateProactivePortfolioIntelligence` (`GET /api/intelligence/recommendations`) surfacing validation unlock actions, next execution steps, and unexplored high-fit product categories.
   5. [x] **Phase 6 (Hardening & Launch):** Add HTTP security headers (`nosniff`, `DENY`, `no-referrer`), CLI snapshot exporter (`node src/cli.js export-report`), and automated end-to-end tests (`tests/straw.test.js`).
+
+## Milestone 3: Real-World Opportunity Intelligence & Evidence Verification (Phase 7)
+- **Status:** Completed & Verified
+- **Concrete Tasks:**
+  1. [x] Add `research_sources`, `research_runs`, and `research_dossiers` tables and enrich `market_evidence` with `source_url`, `source_name`, `supporting_excerpt`, `published_at`, `confidence_score`, `source_reliability_score`, `verification_status`, `research_methodology`, `stance`, `is_stale`, and `content_fingerprint`.
+  2. [x] Implement `verifyAndClassifyEvidence` and `analyzeOpportunityEvidenceQuality` in `src/engines/research-engine.js` so user-supplied labels or arbitrary strings cannot bypass verification without a real `http/https` URL and supporting excerpt.
+  3. [x] Integrate stale evidence exclusion, duplicate detection, and conflicting evidence penalties (`HOLD_CONFLICTING_EVIDENCE`) into `scoreOpportunity` (`src/engines/scoring-engine.js`).
+  4. [x] Implement legitimate public API collectors (`hn_algolia_api`, `wordpress_plugins_api`) with safe offline fallback and hard financial approval blocks for paid providers (`src-paid-keyword-api`).
+  5. [x] Extend `src/public/index.html` and `src/public/app.js` with the `3. Research & Evidence Engine` workspace and manual verification controls.
+  6. [x] Verify valid, invalid/unverified, duplicate, stale, and conflicting evidence cases in `tests/straw.test.js`.

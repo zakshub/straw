@@ -1,9 +1,13 @@
 /**
- * STRAW — Replaceable AI Orchestration Layer
+ * STRAW — Replaceable AI Orchestration Layer (Phase 7)
  *
- * Provides deterministic, zero-cost local opportunity critique and synthesis by default,
- * while supporting pluggable external LLM providers (Gemini, OpenAI, Anthropic) when
- * API keys are configured in the environment. Never fabricates market data.
+ * Supports local deterministic operation by default and configurable external
+ * LLM providers (Gemini, OpenAI, Anthropic) without hardcoding credentials.
+ *
+ * CRITICAL RULES:
+ * 1. LLM-generated conclusions must ALWAYS remain distinguishable from source evidence
+ *    and can NEVER count as verified_evidence.
+ * 2. Paid external API calls require explicit owner approval before execution.
  */
 
 export class AIOrchestrator {
@@ -26,8 +30,72 @@ export class AIOrchestrator {
         openai: hasOpenAI,
         anthropic: hasAnthropic
       },
-      policy_note:
-        'All scoring, epistemic evidence checks, and approval gates are enforced deterministically. External LLM synthesis is optional and replaceable.'
+      paid_api_guardrail: 'ENABLED — External paid LLM calls require explicit owner approval.',
+      epistemic_boundary: 'AI outputs are tagged as AI_GENERATED_SYNTHESIS_NOT_SOURCE_EVIDENCE and never count as verified market evidence.'
+    };
+  }
+
+  /**
+   * Summarizes discussions, extracts recurring problems, categorizes audiences,
+   * identifies competitor weaknesses, generates research hypotheses, and synthesizes evidence.
+   * Always keeps AI conclusions strictly separated from source evidence.
+   */
+  synthesizeResearchFindings({
+    query_topic = 'Unspecified Topic',
+    target_category = 'Browser Based Utilities',
+    findings = [],
+    competitors = []
+  }) {
+    const verifiedFindings = findings.filter(
+      (f) => f.evidence_tier === 'verified_evidence' && f.verification_status === 'verified'
+    );
+    const practitionerFindings = findings.filter((f) => f.evidence_tier === 'practitioner_observation');
+    const contradictingFindings = findings.filter((f) => f.stance === 'contradicting');
+
+    const recurringProblems =
+      findings.length > 0
+        ? findings
+            .slice(0, 4)
+            .map((f) => `Observed in ${f.source_name || 'source'}: ${String(f.statement || '').slice(0, 140)}`)
+        : [`No attributed source findings recorded yet for "${query_topic}".`];
+
+    const audienceCategories = [
+      `Primary practitioners seeking solutions in ${target_category}`,
+      'Operators experiencing workflow friction or compliance risk with manual alternatives'
+    ];
+
+    const competitorWeaknesses =
+      competitors.length > 0
+        ? competitors.map((c) => `${c.competitor_name} (${c.pricing_model}): ${c.weaknesses_and_gaps}`)
+        : ['No structured competitor rows inspected yet; inspect 2–3 direct pricing/product pages.'];
+
+    const researchHypotheses = [
+      `[UNVERIFIED HYPOTHESIS]: Buyers in ${target_category} may prefer a focused, zero-bloat workflow or one-time license over recurring SaaS subscriptions.`,
+      `[VALIDATION TEST REQUIRED]: Verify whether target users actively search for "${query_topic}" tools or rely on free bundled workarounds.`
+    ];
+
+    let synthesisSummary = '';
+    if (verifiedFindings.length === 0) {
+      synthesisSummary = `[INSUFFICIENT VERIFIED EVIDENCE]: "${query_topic}" has 0 active verified source records (${practitionerFindings.length} practitioner observation(s)). Do not treat AI synthesis as market demand proof.`;
+    } else if (contradictingFindings.length > 0) {
+      synthesisSummary = `[CONFLICTING EVIDENCE]: "${query_topic}" has ${verifiedFindings.length} verified supporting finding(s) but also ${contradictingFindings.length} contradicting finding(s). Investigate counter-evidence before committing build time.`;
+    } else {
+      synthesisSummary = `[EVIDENCE-GROUNDED SYNTHESIS]: "${query_topic}" is supported by ${verifiedFindings.length} verified finding(s) and ${practitionerFindings.length} practitioner observation(s).`;
+    }
+
+    return {
+      epistemic_label: 'AI_GENERATED_SYNTHESIS_NOT_SOURCE_EVIDENCE',
+      can_count_as_verified_evidence: false,
+      provider_used: 'local-deterministic-synthesizer',
+      paid_api_invoked: false,
+      synthesized_at: new Date().toISOString(),
+      query_topic,
+      target_category,
+      discussion_summary: synthesisSummary,
+      extracted_recurring_problems: recurringProblems,
+      categorized_audiences: audienceCategories,
+      identified_competitor_weaknesses: competitorWeaknesses,
+      generated_research_hypotheses: researchHypotheses
     };
   }
 
@@ -103,6 +171,8 @@ export class AIOrchestrator {
     );
 
     return {
+      epistemic_label: 'AI_GENERATED_SYNTHESIS_NOT_SOURCE_EVIDENCE',
+      can_count_as_verified_evidence: false,
       provider: 'straw-deterministic-strategist-v1',
       evaluated_at: new Date().toISOString(),
       title,

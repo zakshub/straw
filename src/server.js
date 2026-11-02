@@ -152,17 +152,88 @@ export function createAppServer(customContext) {
       if (evMatch && method === 'POST') {
         const oppId = decodeURIComponent(evMatch[1]);
         const body = await readJsonBody(req);
-        if (!body.statement || !body.source_citation) {
-          return sendJson(res, 400, { error: 'statement and source_citation are required for market evidence.' });
+        if (!body.statement || (!body.source_citation && !body.source_url)) {
+          return sendJson(res, 400, {
+            error: 'statement and source_url (or source_citation) are required for market evidence.'
+          });
         }
-        const evidence = ctx.opportunityEngine.addEvidence(oppId, {
-          claim_type: body.claim_type || 'demand',
-          statement: body.statement,
-          evidence_tier: body.evidence_tier || 'assumption',
-          source_citation: body.source_citation
+        try {
+          const evidence = ctx.opportunityEngine.addEvidence(oppId, {
+            claim_type: body.claim_type || 'demand',
+            statement: body.statement,
+            evidence_tier: body.evidence_tier || 'assumption',
+            source_citation: body.source_citation || body.source_url,
+            source_url: body.source_url || '',
+            source_name: body.source_name || '',
+            supporting_excerpt: body.supporting_excerpt || '',
+            published_at: body.published_at || null,
+            research_methodology: body.research_methodology || 'manual_entry',
+            stance: body.stance || 'supporting'
+          });
+          const opportunity = ctx.opportunityEngine.getOpportunityById(oppId);
+          return sendJson(res, 201, { evidence, opportunity });
+        } catch (err) {
+          if (err.message && err.message.includes('Duplicate research finding')) {
+            return sendJson(res, 409, { error: err.message });
+          }
+          throw err;
+        }
+      }
+
+      // Generate & save 10-step research dossier: /api/opportunities/:id/dossier
+      const dossierMatch = pathname.match(/^\/api\/opportunities\/([^/]+)\/dossier$/);
+      if (dossierMatch && method === 'POST') {
+        const oppId = decodeURIComponent(dossierMatch[1]);
+        const dossier = ctx.researchEngine.generateAndSaveResearchDossier(oppId);
+        return sendJson(res, 201, { dossier });
+      }
+
+      // Phase 7 Research Engine endpoints
+      if (pathname === '/api/research/sources' && method === 'GET') {
+        return sendJson(res, 200, { sources: ctx.researchEngine.listSources() });
+      }
+
+      if (pathname === '/api/research/runs' && method === 'GET') {
+        const opportunityId = urlObj.searchParams.get('opportunity_id') || undefined;
+        return sendJson(res, 200, { runs: ctx.researchEngine.listResearchRuns({ opportunityId }) });
+      }
+
+      if (pathname === '/api/research/runs' && method === 'POST') {
+        const body = await readJsonBody(req);
+        if (!body.query_topic) {
+          return sendJson(res, 400, { error: 'query_topic is required to run market discovery.' });
+        }
+        const run = await ctx.researchEngine.executeDiscoveryRun({
+          query_topic: body.query_topic,
+          target_category: body.target_category || 'Browser Based Utilities',
+          opportunity_id: body.opportunity_id || null,
+          source_ids: body.source_ids || ['src-hn-algolia', 'src-wp-plugin-api'],
+          ingested_findings: body.ingested_findings || [],
+          fetch_live_public: Boolean(body.fetch_live_public),
+          allow_paid_apis: Boolean(body.allow_paid_apis)
         });
-        const opportunity = ctx.opportunityEngine.getOpportunityById(oppId);
-        return sendJson(res, 201, { evidence, opportunity });
+        return sendJson(res, 201, { run });
+      }
+
+      if (pathname === '/api/research/evidence' && method === 'GET') {
+        const opportunityId = urlObj.searchParams.get('opportunity_id') || undefined;
+        const verificationStatus = urlObj.searchParams.get('verification_status') || undefined;
+        const evidenceTier = urlObj.searchParams.get('evidence_tier') || undefined;
+        return sendJson(res, 200, {
+          evidence: ctx.researchEngine.listAllEvidence({ opportunityId, verificationStatus, evidenceTier })
+        });
+      }
+
+      const reviewEvMatch = pathname.match(/^\/api\/research\/evidence\/([^/]+)$/);
+      if (reviewEvMatch && method === 'PATCH') {
+        const evId = decodeURIComponent(reviewEvMatch[1]);
+        const body = await readJsonBody(req);
+        try {
+          const updated = ctx.researchEngine.reviewEvidenceRecord(evId, body);
+          return sendJson(res, 200, { evidence: updated });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
       }
 
       // Add competitor to opportunity: /api/opportunities/:id/competitors

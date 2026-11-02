@@ -1,9 +1,14 @@
+import {
+  verifyAndClassifyEvidence,
+  analyzeOpportunityEvidenceQuality
+} from './research-engine.js';
+
 /**
- * STRAW — Transparent 11-Dimension Opportunity Scoring & Decision Engine
+ * STRAW — Transparent 11-Dimension Opportunity Scoring & Decision Engine (Phase 7)
  *
- * Evaluates opportunities across 11 mandatory dimensions, enforces epistemic
- * evidence penalties when verified demand evidence is absent, and prevents
- * building products merely because AI can generate code.
+ * Evaluates opportunities across 11 mandatory dimensions, enforces strict source
+ * verification, freshness/staleness rules, duplicate origin deduplication, and
+ * conflicting evidence penalties.
  */
 
 export const SCORING_DIMENSIONS = [
@@ -17,7 +22,7 @@ export const SCORING_DIMENSIONS = [
     key: 'demand_evidence',
     label: '2. Demand Evidence',
     weight: 0.14,
-    description: 'Strength of verified search, buyer, community, or competitor revenue evidence (capped if only assumptions exist).'
+    description: 'Strength of verified, non-stale, attributable market evidence (capped if unverified, stale, or conflicting).'
   },
   {
     key: 'audience_accessibility',
@@ -82,9 +87,17 @@ export function scoreOpportunity({
   devComplexity = 'manageable',
   operationalCostMonthlyUsd = 0
 }) {
-  const verifiedCount = evidenceRecords.filter((e) => e.evidence_tier === 'verified_evidence').length;
-  const observationCount = evidenceRecords.filter((e) => e.evidence_tier === 'practitioner_observation').length;
-  const assumptionCount = evidenceRecords.filter((e) => e.evidence_tier === 'assumption').length;
+  // Ensure every evidence record is evaluated by the Phase 7 verification classifier
+  const normalizedEvidence = evidenceRecords.map((ev) =>
+    ev.verification_status && ev.confidence_score !== undefined
+      ? ev
+      : verifyAndClassifyEvidence(ev)
+  );
+
+  const eq = analyzeOpportunityEvidenceQuality(normalizedEvidence);
+  const verifiedCount = eq.active_verified_count;
+  const observationCount = eq.practitioner_observation_count;
+  const assumptionCount = eq.assumption_count;
 
   const rawScores = {};
   for (const dim of SCORING_DIMENSIONS) {
@@ -92,7 +105,7 @@ export function scoreOpportunity({
     rawScores[dim.key] = Number.isFinite(val) ? Math.max(1, Math.min(10, val)) : 5;
   }
 
-  // Enforce dynamic capability fit from CapabilityEngine unless explicitly overridden with explanation
+  // Enforce dynamic capability fit from CapabilityEngine
   if (capabilityAssessment && Number.isFinite(capabilityAssessment.fit_score)) {
     rawScores.owner_capability_fit = capabilityAssessment.fit_score;
   }
@@ -100,20 +113,40 @@ export function scoreOpportunity({
   const warnings = [];
   const blockers = [];
 
+  if (eq.downgraded_unverified_count > 0) {
+    warnings.push(
+      `[UNVERIFIED SOURCE DOWNGRADED]: ${eq.downgraded_unverified_count} finding(s) claimed verified status without a real public http/https URL and supporting excerpt and were automatically downgraded.`
+    );
+  }
+
+  if (eq.stale_count > 0) {
+    warnings.push(
+      `[STALE EVIDENCE EXCLUDED]: ${eq.stale_count} finding(s) exceeded the freshness threshold and cannot count as active verified demand.`
+    );
+  }
+
   // Epistemic guardrail on Demand Evidence:
-  // If zero verified_evidence exists, cap demand_evidence at 4.5 so unverified assumptions cannot masquerade as validated demand.
   let effectiveDemandScore = rawScores.demand_evidence;
   if (verifiedCount === 0 && observationCount === 0) {
     effectiveDemandScore = Math.min(rawScores.demand_evidence, 3.5);
     warnings.push(
-      'Zero verified demand evidence or practitioner observations recorded. Demand Evidence score is capped at 3.5/10 until real market evidence is logged.'
+      'Zero active verified demand evidence or valid practitioner observations recorded. Demand Evidence score is capped at 3.5/10 until attributable market evidence is logged.'
     );
   } else if (verifiedCount === 0 && observationCount > 0) {
     effectiveDemandScore = Math.min(rawScores.demand_evidence, 6.0);
     warnings.push(
-      'Demand rests on practitioner observations without hard external verification. Capped at 6.0/10.'
+      'Demand rests on practitioner observations without active verified external evidence. Capped at 6.0/10.'
     );
   }
+
+  // Conflicting evidence penalty
+  if (eq.has_conflicting_evidence) {
+    effectiveDemandScore = Math.max(1.5, Math.min(effectiveDemandScore - 2.5, 5.5));
+    warnings.push(
+      `[CONFLICTING EVIDENCE DETECTED]: ${eq.contradicting_count} contradicting/counter-evidence finding(s) conflict with supporting demand claims. Demand score penalized to ${effectiveDemandScore}/10 pending conflict resolution.`
+    );
+  }
+
   rawScores.demand_evidence = effectiveDemandScore;
 
   // Guardrail against "Build simply because AI can build it"
@@ -171,12 +204,17 @@ export function scoreOpportunity({
         ? blockers.join(' ')
         : `Overall score (${overallScore}/100) and problem/demand fundamentals do not justify development time.`;
     decisionRationale = `RECOMMEND REJECTION: ${reasons}`;
+  } else if (eq.has_conflicting_evidence) {
+    recommendation = 'HOLD_CONFLICTING_EVIDENCE';
+    decisionRationale = `HOLD — CONFLICTING EVIDENCE (${overallScore}/100): Contradicting market findings (${eq.contradicting_count}) conflict with supporting claims (${eq.supporting_count}). Resolve the evidence conflict before approving product development.`;
   } else if (verifiedCount === 0) {
     recommendation = 'NEEDS_EVIDENCE';
-    decisionRationale = `HOLD FOR VALIDATION (${overallScore}/100): Promising capability alignment, but lacks verified market evidence. Collect at least 1–2 verified demand/competitor signals before approving development.`;
+    decisionRationale = `HOLD FOR VALIDATION (${overallScore}/100): Promising capability alignment, but lacks active verified market evidence (${eq.stale_count} stale, ${eq.downgraded_unverified_count} unverified/downgraded). Collect at least 1–2 attributable verified sources with excerpts before approving development.`;
   } else if (overallScore >= 72 && rawScores.owner_capability_fit >= 6.5 && rawScores.demand_evidence >= 6.5) {
     recommendation = 'APPROVE_FOR_VALIDATION';
-    decisionRationale = `STRONG CANDIDATE (${overallScore}/100): Backed by ${verifiedCount} verified evidence record(s), strong alignment with owner UX/Product/AI-assisted capabilities (${rawScores.owner_capability_fit}/10), and clear monetization path.`;
+    decisionRationale = `STRONG CANDIDATE (${overallScore}/100): Backed by ${verifiedCount} active verified evidence record(s) across ${eq.independent_verified_origins_count} origin(s) (Confidence: ${Math.round(
+      eq.average_confidence_score * 100
+    )}%), strong alignment with owner UX/Product/AI-assisted capabilities (${rawScores.owner_capability_fit}/10), and clear monetization path.`;
   } else {
     recommendation = 'HOLD';
     decisionRationale = `MODERATE CANDIDATE (${overallScore}/100): Viable concept with ${verifiedCount} verified evidence record(s), but requires sharper differentiation or tighter scope before committing development cycles.`;
@@ -188,9 +226,15 @@ export function scoreOpportunity({
     decision_rationale: decisionRationale,
     evidence_summary: {
       verified_count: verifiedCount,
+      independent_origins_count: eq.independent_verified_origins_count,
       practitioner_observation_count: observationCount,
       assumption_count: assumptionCount,
-      total_count: evidenceRecords.length
+      stale_count: eq.stale_count,
+      downgraded_unverified_count: eq.downgraded_unverified_count,
+      contradicting_count: eq.contradicting_count,
+      has_conflicting_evidence: eq.has_conflicting_evidence,
+      average_confidence_score: eq.average_confidence_score,
+      total_count: normalizedEvidence.length
     },
     warnings,
     blockers,

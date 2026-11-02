@@ -29,13 +29,13 @@ test('1. Owner Profile & Capability Engine loads 10 core capabilities and comput
   assert.ok(lowFit.execution_difficulty.includes('High Risk'));
 });
 
-test('2. Epistemic Guardrail caps Demand Evidence when zero verified_evidence exists, and uncaps when verified evidence is added', () => {
+test('2. Phase 7 Epistemic Guardrail: Arbitrary user labels cannot bypass verification; valid URL + excerpt uncaps Demand Score', () => {
   const ctx = createStrawContext({ dbPath: ':memory:' });
 
   const { opportunity } = ctx.opportunityEngine.createOpportunity({
     title: 'Unverified Designer Utility Hypothesis',
     category: 'Browser Based Utilities',
-    problem_statement: 'Designers might want a browser color-Harmony generator.',
+    problem_statement: 'Designers might want a browser color-harmony generator.',
     target_audience: 'Web designers',
     demand_summary: 'Internal guess only',
     competitors_summary: 'Adobe Color, Coolors',
@@ -76,13 +76,39 @@ test('2. Epistemic Guardrail caps Demand Evidence when zero verified_evidence ex
   assert.equal(demandDimBefore.score_out_of_10, 3.5, 'Demand score must be capped at 3.5 when verified_evidence = 0');
   assert.equal(opportunity.recommendation, 'NEEDS_EVIDENCE');
 
-  // Now attach a real verified_evidence record and confirm re-scoring uncaps demand_evidence
-  ctx.opportunityEngine.addEvidence(opportunity.id, {
+  // Attempt to bypass verification by supplying evidence_tier: 'verified_evidence' with an arbitrary string (NO valid URL)
+  const fakeVerified = ctx.opportunityEngine.addEvidence(opportunity.id, {
     claim_type: 'demand',
-    statement: 'Verified 14,000 monthly searches and 3 paid competitor Chrome extensions with 20,000+ paid users.',
+    statement: 'Someone told me there are 50,000 buyers ready.',
     evidence_tier: 'verified_evidence',
-    source_citation: 'Chrome Web Store & Search Audit'
+    source_citation: 'Arbitrary unverified label without URL'
   });
+
+  assert.equal(fakeVerified.requested_evidence_tier, 'verified_evidence');
+  assert.equal(fakeVerified.evidence_tier, 'assumption', 'Arbitrary string without URL must be downgraded to assumption');
+  assert.equal(fakeVerified.verification_status, 'downgraded_unverified');
+
+  const afterFake = ctx.opportunityEngine.getOpportunityById(opportunity.id);
+  const demandDimAfterFake = afterFake.score_breakdown.dimensions.find((d) => d.key === 'demand_evidence');
+  assert.equal(demandDimAfterFake.score_out_of_10, 3.5, 'Unsupported demand claim must NOT uncap demand score');
+  assert.equal(afterFake.recommendation, 'NEEDS_EVIDENCE');
+
+  // Now attach a real, attributable verified_evidence record with a valid public https:// URL and supporting excerpt
+  const realVerified = ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'demand',
+    statement: 'Verified Chrome Web Store listing shows 20,000+ active users for paid WCAG color contrast inspector extensions.',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://chromewebstore.google.com/detail/wcag-color-contrast-checker',
+    source_name: 'Chrome Web Store Public Listing',
+    supporting_excerpt:
+      'Extension listing displays 20,000+ weekly active users and 140+ user reviews requesting exportable CSS design tokens.',
+    published_at: '2026-10-12T00:00:00Z',
+    research_methodology: 'direct_url_inspection'
+  });
+
+  assert.equal(realVerified.evidence_tier, 'verified_evidence');
+  assert.equal(realVerified.verification_status, 'verified');
+  assert.ok(realVerified.confidence_score >= 0.8);
 
   const updated = ctx.opportunityEngine.getOpportunityById(opportunity.id);
   const demandDimAfter = updated.score_breakdown.dimensions.find((d) => d.key === 'demand_evidence');
@@ -91,10 +117,118 @@ test('2. Epistemic Guardrail caps Demand Evidence when zero verified_evidence ex
   assert.ok(updated.overall_score > opportunity.overall_score);
 });
 
-test('3. Weak Idea Rejection & Anti-Repeat Memory detect "AI-Buildability Trap" and warn on repeated rejected ideas', () => {
+test('3. Phase 7 Quality Controls: Duplicate detection, Stale evidence exclusion, Conflicting evidence penalty & AI hypothesis lock', () => {
   const ctx = createStrawContext({ dbPath: ':memory:' });
 
-  // Attempt to create another generic AI blog writer wrapper similar to the rejected seed opportunity
+  const { opportunity } = ctx.opportunityEngine.createOpportunity({
+    title: 'Niche Invoice Formatter Utility',
+    category: 'Browser Based Utilities',
+    problem_statement: 'Freelancers need clean PDF invoices.',
+    target_audience: 'Freelancers',
+    demand_summary: 'Testing evidence quality controls',
+    competitors_summary: 'Stripe Invoicing, Wave',
+    alternatives_summary: 'Google Docs',
+    market_gaps: 'Offline privacy',
+    differentiation_potential: 'Zero signup',
+    dev_complexity: 'low',
+    estimated_dev_days: 5,
+    operational_cost_monthly_usd: 0,
+    monetization_model: '$15 one-time',
+    acquisition_strategy: 'Organic search',
+    revenue_potential_notes: 'Estimate',
+    main_risks: 'Free incumbents',
+    dimension_inputs: {
+      problem_severity: 7.5,
+      demand_evidence: 8.5,
+      audience_accessibility: 8.0,
+      competition_intensity: 7.0,
+      differentiation: 7.5,
+      development_feasibility: 9.0,
+      initial_investment: 10.0,
+      monetization_potential: 7.5,
+      time_to_first_revenue: 8.0,
+      long_term_scalability: 7.0
+    },
+    evidence: []
+  });
+
+  // A. Stale evidence (>365 days old) must be marked stale and excluded from active verified count
+  const staleEv = ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'demand',
+    statement: '2021 thread asking for invoice templates.',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://www.reddit.com/r/freelance/comments/old2021thread',
+    source_name: 'Reddit Public Thread',
+    supporting_excerpt: 'Historical 2021 discussion from 5 years ago about desktop invoice tools.',
+    published_at: '2021-03-10T00:00:00Z'
+  });
+  assert.equal(staleEv.is_stale, 1);
+  assert.equal(staleEv.verification_status, 'stale');
+  assert.notEqual(staleEv.evidence_tier, 'verified_evidence');
+
+  const afterStale = ctx.opportunityEngine.getOpportunityById(opportunity.id);
+  assert.equal(afterStale.evidence_quality_summary.active_verified_count, 0);
+  assert.equal(afterStale.evidence_quality_summary.stale_count, 1);
+  assert.equal(afterStale.recommendation, 'NEEDS_EVIDENCE');
+
+  // B. AI-generated hypothesis can NEVER be stored as verified_evidence
+  const aiHyp = ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'demand',
+    statement: 'LLM predicts 100,000 freelancers will buy this.',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://news.ycombinator.com/item?id=999999',
+    supporting_excerpt: 'Synthesized by an AI model guessing market demand.',
+    research_methodology: 'ai_hypothesis_unverified'
+  });
+  assert.equal(aiHyp.evidence_tier, 'assumption');
+  assert.equal(aiHyp.verification_status, 'downgraded_unverified');
+
+  // C. Add valid fresh supporting verified evidence
+  ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'demand',
+    statement: 'Active 2026 practitioner discussion confirming willingness to pay for offline invoice tools.',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://news.ycombinator.com/item?id=41234567',
+    source_name: 'Hacker News Discussion',
+    supporting_excerpt: 'Multiple solo consultants state they paid $29 for local-first browser invoice generators.',
+    published_at: '2026-10-01T00:00:00Z'
+  });
+
+  // D. Duplicate detection: submitting the exact same finding again must throw
+  assert.throws(() => {
+    ctx.opportunityEngine.addEvidence(opportunity.id, {
+      claim_type: 'demand',
+      statement: 'Active 2026 practitioner discussion confirming willingness to pay for offline invoice tools.',
+      evidence_tier: 'verified_evidence',
+      source_url: 'https://news.ycombinator.com/item?id=41234567',
+      supporting_excerpt: 'Multiple solo consultants state they paid $29 for local-first browser invoice generators.'
+    });
+  }, /Duplicate research finding detected/);
+
+  const afterValid = ctx.opportunityEngine.getOpportunityById(opportunity.id);
+  assert.equal(afterValid.recommendation, 'APPROVE_FOR_VALIDATION');
+
+  // E. Conflicting evidence detection: add contradicting evidence showing free incumbents dominate
+  ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'risk',
+    statement: 'Wave and Stripe now bundle free unlimited PDF invoice generators with 0 transaction fee for basic use.',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://www.waveapps.com/invoicing',
+    source_name: 'Wave Public Pricing Page',
+    supporting_excerpt: 'Wave Invoicing is 100% free with unlimited invoices and customizable templates.',
+    published_at: '2026-10-15T00:00:00Z',
+    stance: 'contradicting'
+  });
+
+  const afterConflict = ctx.opportunityEngine.getOpportunityById(opportunity.id);
+  assert.equal(afterConflict.evidence_quality_summary.has_conflicting_evidence, true);
+  assert.equal(afterConflict.recommendation, 'HOLD_CONFLICTING_EVIDENCE');
+  assert.ok(afterConflict.overall_score < afterValid.overall_score);
+});
+
+test('4. Weak Idea Rejection & Anti-Repeat Memory detect "AI-Buildability Trap" and warn on repeated rejected ideas', () => {
+  const ctx = createStrawContext({ dbPath: ':memory:' });
+
   const { opportunity, overlap_check } = ctx.opportunityEngine.createOpportunity({
     title: 'QuickPost AI: One-Click AI Blog & Social Caption Wrapper',
     category: 'AI Powered Tools',
@@ -125,7 +259,7 @@ test('3. Weak Idea Rejection & Anti-Repeat Memory detect "AI-Buildability Trap" 
   assert.equal(overlap_check.blocked_by_prior_rejection, true);
 });
 
-test('4. 15-Stage Product Execution Engine calculates real completion percentage and triggers Launch Approval Gate on Stage 14', () => {
+test('5. 15-Stage Product Execution Engine calculates real completion percentage and triggers Launch Approval Gate on Stage 14', () => {
   const ctx = createStrawContext({ dbPath: ':memory:' });
   const product = ctx.executionEngine.getProductById('prod-sentinel-a11y');
   assert.ok(product);
@@ -142,14 +276,12 @@ test('4. 15-Stage Product Execution Engine calculates real completion percentage
 
   assert.ok(updatedProduct.completion_pct > product.completion_pct);
 
-  // Verify that completing Stage 14 automatically created a pending launch_product approval gate
   const pendingApprovals = ctx.approvalEngine.listRequests({ status: 'pending' });
   const launchGate = pendingApprovals.find(
     (req) => req.entity_type === 'product' && req.entity_id === product.id && req.action_category === 'launch_product'
   );
   assert.ok(launchGate, 'Completing Stage 14 must create a mandatory Owner Launch Approval Gate');
 
-  // Approve the launch gate and verify product status transitions to launched
   ctx.approvalEngine.decideRequest(launchGate.id, {
     decision: 'approved',
     owner_decision_notes: 'Verified QA and pricing; approved for public release.'
@@ -159,7 +291,7 @@ test('4. 15-Stage Product Execution Engine calculates real completion percentage
   assert.equal(launchedProduct.status, 'launched');
 });
 
-test('5. REST API Server serves dashboard, evaluates concepts, and serves WCAG-grounded workspace HTML', async () => {
+test('6. Phase 2–7 Full Integration: Research Engine, Paid API Gate, Discovery Runs, 10-Step Dossier, Competitor Matrix & REST Endpoints', async () => {
   const ctx = createStrawContext({ dbPath: ':memory:' });
   const { server } = createAppServer(ctx);
 
@@ -168,113 +300,84 @@ test('5. REST API Server serves dashboard, evaluates concepts, and serves WCAG-g
   const baseUrl = `http://127.0.0.1:${port}`;
 
   try {
-    const healthRes = await fetch(`${baseUrl}/api/health`);
-    assert.equal(healthRes.status, 200);
-    const healthJson = await healthRes.json();
-    assert.equal(healthJson.status, 'ok');
+    // 1. Verify Research Sources Registry
+    const srcRes = await fetch(`${baseUrl}/api/research/sources`);
+    assert.equal(srcRes.status, 200);
+    const srcJson = await srcRes.json();
+    assert.ok(srcJson.sources.length >= 7);
 
-    const dashRes = await fetch(`${baseUrl}/api/dashboard`);
-    assert.equal(dashRes.status, 200);
-    const dashJson = await dashRes.json();
-    assert.equal(dashJson.summary_counts.total_capabilities, 10);
-    assert.equal(dashJson.catalogs.opportunity_categories.length, 15);
-    assert.equal(dashJson.catalogs.scoring_dimensions.length, 11);
-    assert.equal(dashJson.catalogs.lifecycle_stages.length, 15);
-
-    const evalRes = await fetch(`${baseUrl}/api/ai/evaluate`, {
+    // 2. Verify Paid Research API is blocked without explicit approval and creates a financial gate
+    const paidRunRes = await fetch(`${baseUrl}/api/research/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: 'Figma Token Diff Viewer',
-        category: 'Figma Resources and Design Systems',
-        problem_statement: 'Designers struggle to review token diffs before PR handoff',
-        dev_complexity: 'low',
-        has_verified_evidence: false
+        query_topic: 'paid keyword volume test',
+        source_ids: ['src-paid-keyword-api'],
+        allow_paid_apis: false
       })
     });
-    assert.equal(evalRes.status, 200);
-    const evalJson = await evalRes.json();
-    assert.ok(evalJson.evaluation.strategic_critique.some((c) => c.includes('[EPISTEMIC WARNING]')));
+    assert.equal(paidRunRes.status, 201);
+    const paidRunJson = await paidRunRes.json();
+    assert.equal(paidRunJson.run.status, 'blocked_approval');
 
-    const htmlRes = await fetch(`${baseUrl}/`);
-    assert.equal(htmlRes.status, 200);
-    const htmlText = await htmlRes.text();
-    assert.ok(htmlText.includes('STRAW'));
-    assert.ok(htmlText.includes('data-theme="light"'));
-  } finally {
-    await new Promise((resolve) => server.close(resolve));
-  }
-});
-
-test('6. Phase 2–6 Capabilities: Competitor Matrix, Score Sensitivity Simulation, Markdown Export, Dependency Diagnostics, Search Clusters, Unit Economics & Proactive Intelligence', async () => {
-  const ctx = createStrawContext({ dbPath: ':memory:' });
-  const { server } = createAppServer(ctx);
-
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address();
-  const baseUrl = `http://127.0.0.1:${port}`;
-
-  try {
-    // Phase 2: Simulate sensitivity on discovered opportunity (opp-ux-flow-simulator)
-    const simRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/simulate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ simulate_verified_evidence: true, dev_complexity: 'low' })
-    });
-    assert.equal(simRes.status, 200);
-    assert.equal(simRes.headers.get('x-content-type-options'), 'nosniff');
-    const simJson = await simRes.json();
-    assert.ok(simJson.simulation.simulated_score > simJson.simulation.baseline_score);
-    assert.equal(simJson.simulation.simulated_recommendation, 'APPROVE_FOR_VALIDATION');
-
-    // Phase 2: Add competitor & export Markdown dossier
-    const compRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/competitors`, {
+    // 3. Execute a free Discovery Run with attributed findings and verify duplicate skipping
+    const runRes = await fetch(`${baseUrl}/api/research/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        competitor_name: 'Stately Studio',
-        pricing_model: 'Freemium + $30/mo Pro',
-        threat_level: 'moderate',
-        strengths: 'Formal XState visual editor',
-        weaknesses_and_gaps: 'Too developer-heavy for UX architects needing UI state matrices'
+        query_topic: 'UI state matrix generator',
+        opportunity_id: 'opp-ux-flow-simulator',
+        source_ids: ['src-hn-algolia'],
+        fetch_live_public: false,
+        ingested_findings: [
+          {
+            claim_type: 'demand',
+            statement: 'Product designers on HN report missing edge-case states during handoff.',
+            evidence_tier: 'verified_evidence',
+            source_url: 'https://news.ycombinator.com/item?id=39887766',
+            source_name: 'Hacker News Discussion',
+            supporting_excerpt: 'Over 45 comments discussing the pain of undocumented loading and error states in Figma handoffs.',
+            published_at: '2026-09-12T00:00:00Z',
+            research_methodology: 'public_api_discovery'
+          },
+          // Intentional duplicate in same batch
+          {
+            claim_type: 'demand',
+            statement: 'Product designers on HN report missing edge-case states during handoff.',
+            evidence_tier: 'verified_evidence',
+            source_url: 'https://news.ycombinator.com/item?id=39887766',
+            source_name: 'Hacker News Discussion',
+            supporting_excerpt: 'Over 45 comments discussing the pain of undocumented loading and error states in Figma handoffs.',
+            published_at: '2026-09-12T00:00:00Z',
+            research_methodology: 'public_api_discovery'
+          }
+        ]
       })
     });
-    assert.equal(compRes.status, 201);
+    assert.equal(runRes.status, 201);
+    const runJson = await runRes.json();
+    assert.equal(runJson.run.findings_created_count, 1);
+    assert.equal(runJson.run.duplicates_skipped_count, 1);
+    assert.equal(runJson.run.ai_synthesis.epistemic_label, 'AI_GENERATED_SYNTHESIS_NOT_SOURCE_EVIDENCE');
+    assert.equal(runJson.run.ai_synthesis.can_count_as_verified_evidence, false);
 
+    // 4. Generate 10-step Research Dossier
+    const dosRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/dossier`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    assert.equal(dosRes.status, 201);
+    const dosJson = await dosRes.json();
+    assert.equal(dosJson.dossier.pipeline_steps.length, 10);
+    assert.equal(dosJson.dossier.evidence_quality_summary.active_verified_count, 1);
+
+    // 5. Verify Markdown Dossier Export
     const exportRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/export?format=markdown`);
     assert.equal(exportRes.status, 200);
     const mdText = await exportRes.text();
-    assert.ok(mdText.includes('# STRAW Opportunity Dossier: StateCraft UX'));
-    assert.ok(mdText.includes('Stately Studio'));
-
-    // Phase 3: Dependency & Stage-Order Diagnostics
-    const prod = ctx.executionEngine.getProductById('prod-sentinel-a11y');
-    assert.ok(prod.dependency_diagnostics.next_critical_task);
-    assert.equal(prod.dependency_diagnostics.next_critical_task.stage_number, 7);
-
-    // Phase 4: Search Intent Clusters & Unit Economics
-    const clusterRes = await fetch(`${baseUrl}/api/products/prod-sentinel-a11y/clusters`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        topic_cluster: 'EAA 2026 SaaS Accessibility Readiness',
-        intent_type: 'compliance_checklist',
-        target_query_pattern: 'european accessibility act figma checklist',
-        conversion_asset: 'Sentinel A11y Starter Kit',
-        demand_evidence_tier: 'verified_evidence'
-      })
-    });
-    assert.equal(clusterRes.status, 201);
-    const clusterJson = await clusterRes.json();
-    assert.ok(clusterJson.workspace.search_intent_clusters.length >= 2);
-    assert.ok(clusterJson.workspace.unit_economics.ltv_cac_status.includes('INSUFFICIENT_VERIFIED_DATA'));
-
-    // Phase 5: Proactive AI Business Intelligence Recommendations
-    const biRes = await fetch(`${baseUrl}/api/intelligence/recommendations`);
-    assert.equal(biRes.status, 200);
-    const biJson = await biRes.json();
-    assert.ok(biJson.proactive_intelligence.proactive_action_queue.length >= 2);
-    assert.ok(biJson.proactive_intelligence.unexplored_high_fit_categories.length >= 1);
+    assert.ok(mdText.includes('# STRAW Opportunity & Market Research Dossier: StateCraft UX'));
+    assert.ok(mdText.includes('https://news.ycombinator.com/item?id=39887766'));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

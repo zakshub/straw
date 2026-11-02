@@ -30,5 +30,6 @@
 | **Growth, Search Clusters, Monetization & Unit Economics** | Phase 1–4 | **Operational** | `src/engines/growth-monetization-engine.js` | Verified via `node --test` |
 | **Human Approval & Financial Control System** | Phase 1 | **Operational** | `src/engines/approval-engine.js` | Verified via `node --test` |
 | **Personal Business Intelligence & Proactive Portfolio Synthesizer** | Phase 1–5 | **Operational** | `src/engines/intelligence-engine.js` | Verified via `node --test` |
-| **Replaceable AI Orchestration Layer** | Phase 1–5 | **Operational** | `src/engines/ai-orchestrator.js` | Verified via `node --test` |
+| **Real-World Research, Source Verification & 10-Step Dossier Engine** | Phase 7 | **Operational** | `src/engines/research-engine.js` | Verified via `node --test` |
+| **Replaceable AI Orchestration Layer** | Phase 1–7 | **Operational** | `src/engines/ai-orchestrator.js` | Verified via `node --test` |
 | **Sentinel Light/Dark Business Workspace UI & Hardened Server** | Phase 1–6 | **Operational** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |

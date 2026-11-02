@@ -36,10 +36,11 @@
   <nav class="workspace-nav" aria-label="Primary Workspace Modules">
     <button type="button" class="nav-tab active" data-tab="overview">1. Command Ledger</button>
     <button type="button" class="nav-tab" data-tab="opportunities">2. Opportunity &amp; Scoring Engine</button>
-    <button type="button" class="nav-tab" data-tab="execution">3. Product Execution (15-Stage)</button>
-    <button type="button" class="nav-tab" data-tab="growth">4. Growth &amp; Monetization</button>
-    <button type="button" class="nav-tab" data-tab="approvals">5. Approval &amp; Financial Gates</button>
-    <button type="button" class="nav-tab" data-tab="capabilities">6. Capabilities &amp; Business Memory</button>
+    <button type="button" class="nav-tab" data-tab="research">3. Research &amp; Evidence Engine</button>
+    <button type="button" class="nav-tab" data-tab="execution">4. Product Execution (15-Stage)</button>
+    <button type="button" class="nav-tab" data-tab="growth">5. Growth &amp; Monetization</button>
+    <button type="button" class="nav-tab" data-tab="approvals">6. Approval &amp; Financial Gates</button>
+    <button type="button" class="nav-tab" data-tab="capabilities">7. Capabilities &amp; Business Memory</button>
   </nav>
 
   <main class="workspace-main" id="main-content">
@@ -291,7 +292,73 @@
       </div>
     </section>
 
-    <!-- WORKSPACE 3: 15-STAGE PRODUCT EXECUTION TRACKER -->
+    <!-- WORKSPACE 3: REAL WORLD RESEARCH & EVIDENCE ENGINE (PHASE 7) -->
+    <section id="tab-research" class="workspace-panel" aria-labelledby="heading-research">
+      <div class="section-header-bar">
+        <div>
+          <h2 id="heading-research" class="section-title">Real-World Market Research, Discovery Runs &amp; Evidence Verification Engine</h2>
+          <p class="section-desc">
+            Enforces strict source attribution (<code>https://</code> URL + factual excerpt + freshness check), duplicate detection, conflicting evidence alerts, and separates source facts from AI synthesis.
+          </p>
+        </div>
+      </div>
+
+      <div class="split-grid-2col" style="margin-bottom: 18px;">
+        <div class="ledger-box">
+          <div class="box-header">
+            <h3>Launch Market Discovery Run</h3>
+          </div>
+          <form id="form-discovery-run" class="structured-form">
+            <div class="form-row-2">
+              <div class="form-group">
+                <label for="run-query">Research Topic / Problem Query (Required)</label>
+                <input type="text" id="run-query" name="query_topic" required placeholder="e.g., accessibility form audit blocks" />
+              </div>
+              <div class="form-group">
+                <label for="run-opp-select">Link to Opportunity (Optional)</label>
+                <select id="run-opp-select" name="opportunity_id">
+                  <option value="">Standalone Discovery Run</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label for="run-source-select">Primary Research Source Adapter</label>
+                <select id="run-source-select" name="source_id"></select>
+              </div>
+              <div class="form-group">
+                <label for="run-live-mode">Collection Mode</label>
+                <select id="run-live-mode" name="fetch_live_public">
+                  <option value="false">Local / Attributed Ingestion Only (Offline Safe)</option>
+                  <option value="true">Query Live Public JSON API (Respects Rate Limits)</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-small">Execute Discovery Run</button>
+          </form>
+
+          <hr class="structural-divider" />
+          <h4 class="sub-box-title">Recent Discovery Runs &amp; AI Synthesis History</h4>
+          <div id="research-runs-list"></div>
+        </div>
+
+        <div class="ledger-box">
+          <div class="box-header">
+            <h3>Registered Research Sources, Reliability &amp; Rate Limits</h3>
+          </div>
+          <div id="research-sources-table"></div>
+        </div>
+      </div>
+
+      <div class="ledger-box">
+        <div class="box-header">
+          <h3>Central Evidence Library &amp; Verification Status Audit</h3>
+        </div>
+        <div id="central-evidence-library-table"></div>
+      </div>
+    </section>
+
+    <!-- WORKSPACE 4: 15-STAGE PRODUCT EXECUTION TRACKER -->
     <section id="tab-execution" class="workspace-panel" aria-labelledby="heading-execution">
       <div class="section-header-bar">
         <div>

@@ -1,5 +1,10 @@
 import crypto from 'node:crypto';
 import { scoreOpportunity } from './scoring-engine.js';
+import {
+  verifyAndClassifyEvidence,
+  computeEvidenceFingerprint,
+  analyzeOpportunityEvidenceQuality
+} from './research-engine.js';
 
 export const OPPORTUNITY_CATEGORIES = [
   'Micro SaaS Products',
@@ -70,6 +75,8 @@ export class OpportunityEngine {
       devComplexity: row.dev_complexity
     });
 
+    const evidenceQuality = analyzeOpportunityEvidenceQuality(evidence);
+
     return {
       ...row,
       required_capabilities: requiredCapabilities,
@@ -77,6 +84,7 @@ export class OpportunityEngine {
       dimension_inputs: dimensionInputs,
       score_breakdown: scoreBreakdown,
       capability_fit_detail: capabilityFit,
+      evidence_quality_summary: evidenceQuality,
       evidence,
       competitors
     };
@@ -144,11 +152,17 @@ export class OpportunityEngine {
 
     const simulatedEvidence = [...current.evidence];
     if (overrides.simulate_verified_evidence) {
-      simulatedEvidence.push({
-        evidence_tier: 'verified_evidence',
-        claim_type: 'demand',
-        statement: 'Simulated verified demand evidence'
-      });
+      simulatedEvidence.push(
+        verifyAndClassifyEvidence({
+          evidence_tier: 'verified_evidence',
+          claim_type: 'demand',
+          statement: 'Simulated verified demand evidence from external public source',
+          source_url: 'https://www.w3.org/TR/simulated-validation/',
+          source_name: 'Simulated Public Verification Source',
+          supporting_excerpt:
+            'Simulated factual excerpt >= 15 chars demonstrating verified external buyer demand for sensitivity analysis.'
+        })
+      );
     }
 
     const simulatedCapAssessment = this.capabilityEngine.evaluateCapabilityFit({
@@ -180,34 +194,37 @@ export class OpportunityEngine {
     const opp = this.getOpportunityById(opportunityId);
     if (!opp) throw new Error(`Opportunity ${opportunityId} not found.`);
 
+    const eq = opp.evidence_quality_summary;
+
     const lines = [
-      `# STRAW Opportunity Dossier: ${opp.title}`,
+      `# STRAW Opportunity & Market Research Dossier: ${opp.title}`,
       ``,
       `- **ID:** \`${opp.id}\``,
       `- **Category:** ${opp.category}`,
       `- **Status:** \`${opp.status.toUpperCase()}\``,
       `- **Overall Score:** **${opp.overall_score} / 100**`,
+      `- **Evidence Confidence:** **${Math.round(eq.average_confidence_score * 100)}%** (${eq.active_verified_count} active verified across ${eq.independent_verified_origins_count} origin(s), ${eq.stale_count} stale, ${eq.contradicting_count} contradicting)`,
       `- **Decision Engine Recommendation:** \`${opp.recommendation}\``,
       `- **Rationale:** ${opp.decision_rationale}`,
       ``,
       `---`,
       ``,
-      `## 1. 15-Point Opportunity Evaluation`,
-      `1. **Problem Addressed:** ${opp.problem_statement}`,
-      `2. **Target Audience:** ${opp.target_audience}`,
-      `3. **Demand Summary:** ${opp.demand_summary}`,
-      `4. **Existing Competitors:** ${opp.competitors_summary}`,
-      `5. **Current Alternatives:** ${opp.alternatives_summary}`,
-      `6. **Market Gaps:** ${opp.market_gaps}`,
-      `7. **Differentiation Potential:** ${opp.differentiation_potential}`,
-      `8. **Development Complexity:** \`${opp.dev_complexity}\``,
-      `9. **Estimated Development Time:** ${opp.estimated_dev_days} days`,
-      `10. **Operational Cost:** $${opp.operational_cost_monthly_usd}/month`,
-      `11. **Monetization Model:** ${opp.monetization_model}`,
-      `12. **Customer Acquisition Strategy:** ${opp.acquisition_strategy}`,
-      `13. **Revenue Potential (Honest Note):** ${opp.revenue_potential_notes}`,
-      `14. **Main Risks:** ${opp.main_risks}`,
-      `15. **Owner Capability Fit (${opp.capability_fit_detail.fit_score}/10):** ${opp.capability_fit_detail.summary}`,
+      `## 1. 15-Point Opportunity Evaluation (Facts vs. Estimates Separated)`,
+      `1. **Problem Addressed [FACT/OBSERVATION]:** ${opp.problem_statement}`,
+      `2. **Target Audience [SEGMENT]:** ${opp.target_audience}`,
+      `3. **Demand Summary [EVIDENCE-BOUND]:** ${opp.demand_summary}`,
+      `4. **Existing Competitors [MARKET FACT]:** ${opp.competitors_summary}`,
+      `5. **Current Alternatives [WORKFLOW FACT]:** ${opp.alternatives_summary}`,
+      `6. **Market Gaps [ANALYSIS]:** ${opp.market_gaps}`,
+      `7. **Differentiation Potential [STRATEGY]:** ${opp.differentiation_potential}`,
+      `8. **Development Complexity [ESTIMATE]:** \`${opp.dev_complexity}\``,
+      `9. **Estimated Development Time [ESTIMATE]:** ${opp.estimated_dev_days} days`,
+      `10. **Operational Cost [ESTIMATE]:** $${opp.operational_cost_monthly_usd}/month`,
+      `11. **Monetization Model [STRATEGY]:** ${opp.monetization_model}`,
+      `12. **Customer Acquisition Strategy [STRATEGY]:** ${opp.acquisition_strategy}`,
+      `13. **Revenue Potential [UNVERIFIED ESTIMATE]:** ${opp.revenue_potential_notes}`,
+      `14. **Main Risks [RISK ANALYSIS]:** ${opp.main_risks}`,
+      `15. **Owner Capability Fit [DETERMINISTIC FACT: ${opp.capability_fit_detail.fit_score}/10]:** ${opp.capability_fit_detail.summary}`,
       ``,
       `## 2. Transparent 11-Dimension Score Breakdown`,
       `| Dimension | Weight | Score (1-10) | Weighted Points |`,
@@ -216,9 +233,16 @@ export class OpportunityEngine {
         (d) => `| ${d.label} | ${d.weight_pct}% | ${d.score_out_of_10}/10 | +${d.weighted_points} |`
       ),
       ``,
-      `## 3. Epistemic Market Evidence Ledger (${opp.evidence.length} Records)`,
+      `## 3. Attributed Market Evidence Library (${opp.evidence.length} Records)`,
       ...opp.evidence.map(
-        (e) => `- **[${e.evidence_tier.toUpperCase()}] (${e.claim_type}):** ${e.statement} *(Source: ${e.source_citation})*`
+        (e) =>
+          `- **[${e.evidence_tier.toUpperCase()} | Status: ${e.verification_status} | Conf: ${Math.round(
+            (e.confidence_score || 0.3) * 100
+          )}% | Stance: ${e.stance}]** (${e.claim_type}): ${e.statement}\n  - *Source:* ${e.source_name} (${
+            e.source_url || e.source_citation
+          }) | *Method:* \`${e.research_methodology}\` | *Discovered:* ${e.observed_at.slice(0, 10)}${
+            e.published_at ? ` | *Published:* ${e.published_at.slice(0, 10)}` : ''
+          }\n  - *Excerpt / Verification Note:* ${e.supporting_excerpt || e.verification_notes}`
       ),
       ``,
       `## 4. Structured Competitor Matrix (${opp.competitors.length} Records)`,
@@ -245,8 +269,11 @@ export class OpportunityEngine {
         '-' +
         id.slice(-4);
 
-    const initialEvidence = Array.isArray(payload.evidence) ? payload.evidence : [];
-    const hasVerifiedEvidence = initialEvidence.some((e) => e.evidence_tier === 'verified_evidence');
+    const rawInitialEvidence = Array.isArray(payload.evidence) ? payload.evidence : [];
+    const classifiedInitial = rawInitialEvidence.map((e) => verifyAndClassifyEvidence(e));
+    const hasVerifiedEvidence = classifiedInitial.some(
+      (e) => e.evidence_tier === 'verified_evidence' && e.verification_status === 'verified' && !e.is_stale
+    );
 
     // Check against previously rejected opportunities
     const overlapCheck = this.intelligenceEngine.checkRejectedIdeaOverlap({
@@ -269,7 +296,7 @@ export class OpportunityEngine {
     const dimensionInputs = payload.dimension_inputs || {};
     const scoringResult = scoreOpportunity({
       dimensionInputs,
-      evidenceRecords: initialEvidence,
+      evidenceRecords: classifiedInitial,
       capabilityAssessment,
       devComplexity,
       operationalCostMonthlyUsd: Number(payload.operational_cost_monthly_usd) || 0
@@ -345,8 +372,8 @@ export class OpportunityEngine {
         now
       );
 
-    for (const ev of initialEvidence) {
-      this.addEvidence(id, ev, { skipRescore: true });
+    for (const ev of rawInitialEvidence) {
+      this.addEvidence(id, ev, { skipRescore: true, ignoreDuplicates: true });
     }
 
     this.rescoreOpportunity(id);
@@ -356,17 +383,83 @@ export class OpportunityEngine {
     };
   }
 
-  addEvidence(opportunityId, { claim_type = 'demand', statement, evidence_tier = 'assumption', source_citation }, { skipRescore = false } = {}) {
-    const id = `ev-${crypto.randomUUID().slice(0, 8)}`;
-    const now = new Date().toISOString();
+  /**
+   * Stores a research finding with strict source attribution, verification classification,
+   * freshness check, and duplicate detection.
+   */
+  addEvidence(
+    opportunityId,
+    rawInput,
+    { skipRescore = false, ignoreDuplicates = false } = {}
+  ) {
+    const classified = verifyAndClassifyEvidence(rawInput);
+    const fingerprint = computeEvidenceFingerprint({
+      opportunityId,
+      normalizedUrl: classified.source_url,
+      statement: classified.statement,
+      claimType: classified.claim_type
+    });
+
+    // Check for duplicate finding on this opportunity
+    const existingDup = this.db
+      .prepare(
+        `SELECT * FROM market_evidence
+         WHERE opportunity_id = ?
+           AND (content_fingerprint = ? OR (source_url != '' AND source_url = ? AND claim_type = ? AND statement = ?))`
+      )
+      .get(
+        opportunityId,
+        fingerprint,
+        classified.source_url,
+        classified.claim_type,
+        classified.statement
+      );
+
+    if (existingDup) {
+      if (ignoreDuplicates) {
+        return { duplicate: true, existing: existingDup };
+      }
+      throw new Error(
+        `Duplicate research finding detected: This claim or source URL is already recorded on opportunity ${opportunityId} (Existing ID: ${existingDup.id}).`
+      );
+    }
+
+    const id = rawInput.id || `ev-${crypto.randomUUID().slice(0, 8)}`;
 
     this.db
       .prepare(`
         INSERT INTO market_evidence (
-          id, opportunity_id, claim_type, statement, evidence_tier, source_citation, observed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          id, opportunity_id, claim_type, statement,
+          evidence_tier, requested_evidence_tier, source_citation,
+          source_url, source_name, supporting_excerpt,
+          published_at, observed_at, confidence_score,
+          source_reliability_score, verification_status, verification_notes,
+          research_methodology, stance, is_stale, content_fingerprint, research_run_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
-      .run(id, opportunityId, claim_type, statement.trim(), evidence_tier, source_citation.trim(), now);
+      .run(
+        id,
+        opportunityId,
+        classified.claim_type,
+        classified.statement,
+        classified.evidence_tier,
+        classified.requested_evidence_tier,
+        classified.source_citation,
+        classified.source_url,
+        classified.source_name,
+        classified.supporting_excerpt,
+        classified.published_at,
+        classified.observed_at,
+        classified.confidence_score,
+        classified.source_reliability_score,
+        classified.verification_status,
+        classified.verification_notes,
+        classified.research_methodology,
+        classified.stance,
+        classified.is_stale,
+        fingerprint,
+        rawInput.research_run_id || null
+      );
 
     if (!skipRescore) {
       this.rescoreOpportunity(opportunityId);

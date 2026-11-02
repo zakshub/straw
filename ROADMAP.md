@@ -36,3 +36,10 @@
 ## Phase 6: Hardening and Launch Readiness (Completed & Verified)
 - [x] Add HTTP security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`) and path-traversal guards.
 - [x] Add executive snapshot export CLI (`node src/cli.js export-report`) and end-to-end automated test coverage across all phases (`tests/straw.test.js`).
+
+## Phase 7: Real-World Opportunity Intelligence & Evidence-Based Market Discovery (Completed & Verified)
+- [x] Implement `ResearchEngine` (`src/engines/research-engine.js`) with source registry (`research_sources`), discovery runs (`research_runs`), and 10-step research dossiers (`research_dossiers`).
+- [x] Implement strict evidence verification rules (`verifyAndClassifyEvidence`) requiring a valid public `http/https` URL, non-empty supporting excerpt (`>= 15` chars), freshness check (`<= 365` days for market claims), and source reliability threshold (`>= 0.50`) before granting `verified_evidence`.
+- [x] Implement SHA-256 content fingerprint duplicate detection (`computeEvidenceFingerprint`) and conflicting evidence penalty (`HOLD_CONFLICTING_EVIDENCE`).
+- [x] Enforce strict epistemic separation between source evidence and AI synthesis (`AI_GENERATED_SYNTHESIS_NOT_SOURCE_EVIDENCE`) and hard financial approval locks for paid research APIs.
+- [x] Extend STRAW Workspace UI with the `3. Research & Evidence Engine` tab, Discovery Run launcher, Central Evidence Library, and manual verification workflow.
