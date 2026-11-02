@@ -210,5 +210,32 @@ export function runMigrations(db) {
       future_implication TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS opportunity_competitors (
+      id TEXT PRIMARY KEY,
+      opportunity_id TEXT NOT NULL,
+      competitor_name TEXT NOT NULL,
+      pricing_model TEXT NOT NULL,
+      strengths TEXT NOT NULL,
+      weaknesses_and_gaps TEXT NOT NULL,
+      threat_level TEXT NOT NULL CHECK (threat_level IN ('low', 'moderate', 'high')),
+      evidence_tier TEXT NOT NULL CHECK (evidence_tier IN ('verified_evidence', 'practitioner_observation', 'estimate', 'assumption')),
+      source_ref TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS search_intent_clusters (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      topic_cluster TEXT NOT NULL,
+      intent_type TEXT NOT NULL CHECK (intent_type IN ('tool_utility', 'template_resource', 'comparison_alternative', 'problem_solution', 'compliance_checklist')),
+      target_query_pattern TEXT NOT NULL,
+      conversion_asset TEXT NOT NULL,
+      demand_evidence_tier TEXT NOT NULL CHECK (demand_evidence_tier IN ('verified_evidence', 'practitioner_observation', 'estimate', 'assumption')),
+      status TEXT NOT NULL CHECK (status IN ('planned', 'drafting', 'published')),
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    );
   `);
 }

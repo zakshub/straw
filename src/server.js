@@ -20,7 +20,10 @@ function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store'
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer'
   });
   res.end(body);
 }
@@ -162,6 +165,48 @@ export function createAppServer(customContext) {
         return sendJson(res, 201, { evidence, opportunity });
       }
 
+      // Add competitor to opportunity: /api/opportunities/:id/competitors
+      const compMatch = pathname.match(/^\/api\/opportunities\/([^/]+)\/competitors$/);
+      if (compMatch && method === 'POST') {
+        const oppId = decodeURIComponent(compMatch[1]);
+        const body = await readJsonBody(req);
+        if (!body.competitor_name) {
+          return sendJson(res, 400, { error: 'competitor_name is required.' });
+        }
+        const competitor = ctx.opportunityEngine.addCompetitor(oppId, body);
+        const opportunity = ctx.opportunityEngine.getOpportunityById(oppId);
+        return sendJson(res, 201, { competitor, opportunity });
+      }
+
+      // Simulate score sensitivity: /api/opportunities/:id/simulate
+      const simMatch = pathname.match(/^\/api\/opportunities\/([^/]+)\/simulate$/);
+      if (simMatch && method === 'POST') {
+        const oppId = decodeURIComponent(simMatch[1]);
+        const body = await readJsonBody(req);
+        const simulation = ctx.opportunityEngine.simulateOpportunityScore(oppId, body);
+        return sendJson(res, 200, { simulation });
+      }
+
+      // Export opportunity dossier: /api/opportunities/:id/export
+      const expMatch = pathname.match(/^\/api\/opportunities\/([^/]+)\/export$/);
+      if (expMatch && method === 'GET') {
+        const oppId = decodeURIComponent(expMatch[1]);
+        const format = urlObj.searchParams.get('format') || 'markdown';
+        const opp = ctx.opportunityEngine.getOpportunityById(oppId);
+        if (!opp) return sendJson(res, 404, { error: 'Opportunity not found' });
+
+        if (format === 'json') {
+          return sendJson(res, 200, { dossier: opp });
+        }
+        const md = ctx.opportunityEngine.exportOpportunityDossierMarkdown(oppId);
+        res.writeHead(200, {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${opp.slug}-dossier.md"`,
+          'X-Content-Type-Options': 'nosniff'
+        });
+        return res.end(md);
+      }
+
       // Promote opportunity to active product: /api/opportunities/:id/promote
       const promoteMatch = pathname.match(/^\/api\/opportunities\/([^/]+)\/promote$/);
       if (promoteMatch && method === 'POST') {
@@ -230,6 +275,22 @@ export function createAppServer(customContext) {
         }
       }
 
+      const clusterMatch = pathname.match(/^\/api\/products\/([^/]+)\/clusters$/);
+      if (clusterMatch && method === 'POST') {
+        const prodId = decodeURIComponent(clusterMatch[1]);
+        const body = await readJsonBody(req);
+        if (!body.topic_cluster || !body.target_query_pattern || !body.conversion_asset) {
+          return sendJson(res, 400, {
+            error: 'topic_cluster, target_query_pattern, and conversion_asset are required.'
+          });
+        }
+        const cluster = ctx.growthEngine.addSearchIntentCluster(prodId, body);
+        return sendJson(res, 201, {
+          cluster,
+          workspace: ctx.growthEngine.getProductGrowthWorkspace(prodId)
+        });
+      }
+
       // Approval gates
       if (pathname === '/api/approvals' && method === 'GET') {
         const status = urlObj.searchParams.get('status') || undefined;
@@ -265,6 +326,11 @@ export function createAppServer(customContext) {
       }
 
       // Personal Business Intelligence Memory
+      if (pathname === '/api/intelligence/recommendations' && method === 'GET') {
+        const overview = ctx.getDashboardOverview();
+        return sendJson(res, 200, { proactive_intelligence: overview.proactive_intelligence });
+      }
+
       if (pathname === '/api/intelligence' && method === 'GET') {
         const entryType = urlObj.searchParams.get('entry_type') || undefined;
         return sendJson(res, 200, { entries: ctx.intelligenceEngine.listEntries({ entryType }) });

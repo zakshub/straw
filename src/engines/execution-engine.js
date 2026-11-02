@@ -88,6 +88,28 @@ export class ExecutionEngine {
       completion_pct: p.estimated_hours > 0 ? Number(((p.done_hours / p.estimated_hours) * 100).toFixed(1)) : 0
     }));
 
+    // Phase 3: Dependency & Stage-Gate Diagnostic Analysis
+    const stageGateWarnings = [];
+    const highestActiveStage = tasks
+      .filter((t) => t.status === 'in_progress' || t.status === 'done')
+      .reduce((max, t) => Math.max(max, t.stage_number), 1);
+
+    const skippedFoundationalTasks = tasks.filter(
+      (t) => t.stage_number < highestActiveStage && t.status !== 'done'
+    );
+    if (skippedFoundationalTasks.length > 0) {
+      stageGateWarnings.push(
+        `Stage-Order Dependency Alert: Stage ${highestActiveStage} is active while ${skippedFoundationalTasks.length} earlier stage task(s) (${skippedFoundationalTasks.map((s) => `Stage ${s.stage_number}`).join(', ')}) remain incomplete.`
+      );
+    }
+
+    const explicitlyBlocked = tasks.filter((t) => t.status === 'blocked');
+    for (const bt of explicitlyBlocked) {
+      stageGateWarnings.push(`Blocked Task at Stage ${bt.stage_number} (${bt.stage_name}): "${bt.title}" — Risk: ${bt.risks}`);
+    }
+
+    const nextCriticalTask = tasks.find((t) => t.status !== 'done') || null;
+
     return {
       ...row,
       completion_pct: realCompletionPct,
@@ -102,6 +124,19 @@ export class ExecutionEngine {
         remaining_estimated_hours: remainingEstimatedHours,
         total_actual_hours: totalActualHours,
         completion_pct: realCompletionPct
+      },
+      dependency_diagnostics: {
+        has_warnings: stageGateWarnings.length > 0,
+        warnings: stageGateWarnings,
+        next_critical_task: nextCriticalTask
+          ? {
+              id: nextCriticalTask.id,
+              stage_number: nextCriticalTask.stage_number,
+              stage_name: nextCriticalTask.stage_name,
+              title: nextCriticalTask.title,
+              estimated_hours: nextCriticalTask.estimated_hours
+            }
+          : null
       },
       phases,
       tasks

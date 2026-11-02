@@ -309,7 +309,10 @@ function renderOpportunitiesWorkspace(data) {
       <button type="button" class="btn btn-small btn-secondary" data-opp-status="${escapeHtml(selected.id)}" data-status="evaluating">Mark Evaluating</button>
       <button type="button" class="btn btn-small btn-reject" data-opp-status="${escapeHtml(selected.id)}" data-status="rejected">Reject Weak Idea</button>
       <button type="button" class="btn btn-small btn-primary" data-promote-opp="${escapeHtml(selected.id)}">Promote to 15-Stage Product Build</button>
+      <button type="button" class="btn btn-small btn-secondary" data-simulate-opp="${escapeHtml(selected.id)}">Simulate +Verified Evidence</button>
+      <a class="btn btn-small btn-secondary" href="/api/opportunities/${encodeURIComponent(selected.id)}/export?format=markdown" target="_blank" rel="noopener">Export Markdown Dossier</a>
     </div>
+    <div id="simulation-result-box" class="hidden" style="margin-bottom: 12px;"></div>
 
     <h4 class="sub-box-title">15-Criteria Opportunity Evaluation Matrix</h4>
     <div class="criteria-grid">
@@ -419,6 +422,68 @@ function renderOpportunitiesWorkspace(data) {
       </div>
       <button type="submit" class="btn btn-secondary btn-small">Attach Evidence &amp; Re-Score Opportunity</button>
     </form>
+
+    <hr class="structural-divider" />
+    <h4 class="sub-box-title">Structured Competitor Matrix (${(selected.competitors || []).length} Records)</h4>
+    <table class="data-table" style="margin-bottom: 12px;">
+      <thead>
+        <tr>
+          <th>Competitor &amp; Pricing</th>
+          <th>Threat</th>
+          <th>Provenance</th>
+          <th>Strengths vs. Exploitable Gaps</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(selected.competitors || [])
+          .map(
+            (c) => `
+          <tr>
+            <td><strong>${escapeHtml(c.competitor_name)}</strong><div class="dossier-item-meta">${escapeHtml(c.pricing_model)}</div></td>
+            <td><code>${escapeHtml(c.threat_level.toUpperCase())}</code></td>
+            <td>${renderEvidenceTierBadge(c.evidence_tier)}</td>
+            <td class="dossier-item-meta">
+              <div><strong>Strengths:</strong> ${escapeHtml(c.strengths)}</div>
+              <div><strong>Gaps:</strong> ${escapeHtml(c.weaknesses_and_gaps)}</div>
+            </td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+
+    <form id="form-add-competitor" data-opp-id="${escapeHtml(selected.id)}" class="structured-form">
+      <div class="form-row-3">
+        <div class="form-group">
+          <label for="comp-name-input">Competitor Name (Required)</label>
+          <input type="text" id="comp-name-input" name="competitor_name" required placeholder="e.g., Stark Plugin" />
+        </div>
+        <div class="form-group">
+          <label for="comp-price-input">Pricing Model</label>
+          <input type="text" id="comp-price-input" name="pricing_model" required placeholder="e.g., $19/mo SaaS" />
+        </div>
+        <div class="form-group">
+          <label for="comp-threat-select">Threat Level</label>
+          <select id="comp-threat-select" name="threat_level">
+            <option value="low">Low</option>
+            <option value="moderate" selected>Moderate</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label for="comp-strengths-input">Incumbent Strengths</label>
+          <input type="text" id="comp-strengths-input" name="strengths" required placeholder="Brand recognition or distribution" />
+        </div>
+        <div class="form-group">
+          <label for="comp-gaps-input">Weaknesses &amp; Exploitable Gaps (Required)</label>
+          <input type="text" id="comp-gaps-input" name="weaknesses_and_gaps" required placeholder="Specific UX or pricing weakness we exploit" />
+        </div>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-small">Add Competitor to Matrix</button>
+    </form>
   `;
 }
 
@@ -470,6 +535,22 @@ async function renderExecutionWorkspace(data) {
           Actual Logged: <strong>${m.total_actual_hours} hrs</strong>
         </div>
       </div>
+
+      ${
+        product.dependency_diagnostics?.next_critical_task
+          ? `<div class="criteria-cell" style="margin-top: 8px;">
+              <strong>Next Critical-Path Milestone</strong>
+              Stage ${product.dependency_diagnostics.next_critical_task.stage_number} (${escapeHtml(
+                product.dependency_diagnostics.next_critical_task.stage_name
+              )}): ${escapeHtml(product.dependency_diagnostics.next_critical_task.title)} (${
+                product.dependency_diagnostics.next_critical_task.estimated_hours
+              }h est)
+              ${(product.dependency_diagnostics.warnings || [])
+                .map((w) => `<div class="badge badge-warn" style="display:block; margin-top:4px; white-space:normal;">${escapeHtml(w)}</div>`)
+                .join('')}
+            </div>`
+          : ''
+      }
     </div>
 
     <div class="ledger-box">
@@ -617,6 +698,33 @@ async function renderGrowthWorkspace(data) {
           </div>
           <button type="submit" class="btn btn-secondary btn-small">Add Distribution Channel</button>
         </form>
+
+        <hr class="structural-divider" />
+        <h4 class="sub-box-title">Search Intent &amp; Conversion Asset Clusters (${(gw.search_intent_clusters || []).length})</h4>
+        <table class="data-table" style="margin-bottom: 12px;">
+          <thead>
+            <tr>
+              <th>Topic Cluster &amp; Intent</th>
+              <th>Target Query Pattern</th>
+              <th>Conversion Asset</th>
+              <th>Provenance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(gw.search_intent_clusters || [])
+              .map(
+                (cl) => `
+              <tr>
+                <td><strong>${escapeHtml(cl.topic_cluster)}</strong><div class="dossier-item-meta"><code>${escapeHtml(cl.intent_type)}</code> · ${escapeHtml(cl.status)}</div></td>
+                <td><code>${escapeHtml(cl.target_query_pattern)}</code></td>
+                <td>${escapeHtml(cl.conversion_asset)}</td>
+                <td>${renderEvidenceTierBadge(cl.demand_evidence_tier)}</td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
       </div>
 
       <div class="ledger-box">
@@ -626,6 +734,16 @@ async function renderGrowthWorkspace(data) {
         <div class="criteria-cell" style="margin-bottom: 12px;">
           <strong>Active Monetization Model: ${escapeHtml(product.monetization_model)}</strong>
           <div class="dossier-item-meta">${escapeHtml(product.monetization_tradeoffs)}</div>
+          ${
+            gw.unit_economics
+              ? `<div class="dossier-item-meta" style="margin-top:6px;">
+                  <strong>Unit Economics:</strong> Active Burn: <code>$${gw.unit_economics.active_channel_monthly_burn_usd}/mo</code> ·
+                  Recorded Revenue: <code>$${gw.unit_economics.recorded_revenue_total_usd}</code> ·
+                  Net Cashflow: <code>$${gw.unit_economics.net_cashflow_usd}</code> ·
+                  LTV:CAC: <code>${escapeHtml(gw.unit_economics.ltv_cac_status)}</code>
+                </div>`
+              : ''
+          }
         </div>
 
         <h4 class="sub-box-title">Comparative Monetization Models &amp; Tradeoffs</h4>
@@ -781,7 +899,35 @@ function renderCapabilitiesWorkspace(data) {
   `;
 
   const biList = document.getElementById('intelligence-memory-list');
+  const proactive = data.proactive_intelligence || { proactive_action_queue: [], unexplored_high_fit_categories: [] };
+
   biList.innerHTML = `
+    <div class="criteria-cell" style="margin-bottom: 12px;">
+      <strong>Proactive AI Business Intelligence Recommendations</strong>
+      ${(proactive.proactive_action_queue || [])
+        .map(
+          (item) => `
+        <div style="margin-top: 6px;">
+          <span class="badge ${item.priority === 'URGENT' ? 'badge-warn' : 'badge-info'}">[${escapeHtml(item.type)}]</span>
+          <strong>${escapeHtml(item.target)}:</strong> ${escapeHtml(item.recommendation)}
+        </div>
+      `
+        )
+        .join('')}
+      ${
+        (proactive.unexplored_high_fit_categories || []).length > 0
+          ? `<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-color);">
+              <strong>Unexplored High-Fit Product Categories Aligned with Level-5 Capabilities:</strong>
+              ${proactive.unexplored_high_fit_categories
+                .map(
+                  (u) => `<div class="dossier-item-meta" style="margin-top:4px;">• <strong>${escapeHtml(u.category)}</strong> — ${escapeHtml(u.concept)}: ${escapeHtml(u.why_it_fits)}</div>`
+                )
+                .join('')}
+            </div>`
+          : ''
+      }
+    </div>
+
     <table class="data-table">
       <thead>
         <tr>
@@ -877,6 +1023,27 @@ document.addEventListener('DOMContentLoaded', () => {
       showFeedback(`Promoted "${res.product.name}" into active 15-stage product execution!`);
       await loadDashboard();
       switchTab('execution');
+      return;
+    }
+
+    const simBtn = e.target.closest('[data-simulate-opp]');
+    if (simBtn) {
+      const oppId = simBtn.dataset.simulateOpp;
+      const res = await fetchJson(`/api/opportunities/${encodeURIComponent(oppId)}/simulate`, {
+        method: 'POST',
+        body: JSON.stringify({ simulate_verified_evidence: true, dev_complexity: 'low' })
+      });
+      const s = res.simulation;
+      const simBox = document.getElementById('simulation-result-box');
+      if (simBox) {
+        simBox.classList.remove('hidden');
+        simBox.className = 'criteria-cell';
+        simBox.innerHTML = `
+          <strong>Sensitivity Simulation Result (Non-Destructive)</strong>
+          <div>If 1+ Verified Demand Evidence record is acquired and complexity is scoped to <code>low</code>:</div>
+          <div>Baseline: <strong>${s.baseline_score}/100</strong> (<code>${escapeHtml(s.baseline_recommendation)}</code>) &rarr; Simulated: <strong>${s.simulated_score}/100</strong> (<code>${escapeHtml(s.simulated_recommendation)}</code>) [Delta: <strong>${s.score_delta >= 0 ? '+' : ''}${s.score_delta} pts</strong>]</div>
+        `;
+      }
       return;
     }
 
@@ -990,6 +1157,24 @@ document.addEventListener('DOMContentLoaded', () => {
       showFeedback(
         `Logged market evidence. Re-calculated score: ${res.opportunity.overall_score}/100 (${res.opportunity.recommendation}).`
       );
+      await loadDashboard();
+    } else if (e.target.id === 'form-add-competitor') {
+      e.preventDefault();
+      const oppId = e.target.dataset.oppId;
+      const fd = new FormData(e.target);
+      await fetchJson(`/api/opportunities/${encodeURIComponent(oppId)}/competitors`, {
+        method: 'POST',
+        body: JSON.stringify({
+          competitor_name: fd.get('competitor_name'),
+          pricing_model: fd.get('pricing_model'),
+          threat_level: fd.get('threat_level'),
+          strengths: fd.get('strengths'),
+          weaknesses_and_gaps: fd.get('weaknesses_and_gaps'),
+          evidence_tier: 'practitioner_observation',
+          source_ref: 'Competitive Matrix Entry'
+        })
+      });
+      showFeedback('Added competitor to opportunity matrix.');
       await loadDashboard();
     } else if (e.target.id === 'form-add-channel') {
       e.preventDefault();

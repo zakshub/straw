@@ -205,3 +205,77 @@ test('5. REST API Server serves dashboard, evaluates concepts, and serves WCAG-g
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test('6. Phase 2–6 Capabilities: Competitor Matrix, Score Sensitivity Simulation, Markdown Export, Dependency Diagnostics, Search Clusters, Unit Economics & Proactive Intelligence', async () => {
+  const ctx = createStrawContext({ dbPath: ':memory:' });
+  const { server } = createAppServer(ctx);
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // Phase 2: Simulate sensitivity on discovered opportunity (opp-ux-flow-simulator)
+    const simRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ simulate_verified_evidence: true, dev_complexity: 'low' })
+    });
+    assert.equal(simRes.status, 200);
+    assert.equal(simRes.headers.get('x-content-type-options'), 'nosniff');
+    const simJson = await simRes.json();
+    assert.ok(simJson.simulation.simulated_score > simJson.simulation.baseline_score);
+    assert.equal(simJson.simulation.simulated_recommendation, 'APPROVE_FOR_VALIDATION');
+
+    // Phase 2: Add competitor & export Markdown dossier
+    const compRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/competitors`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        competitor_name: 'Stately Studio',
+        pricing_model: 'Freemium + $30/mo Pro',
+        threat_level: 'moderate',
+        strengths: 'Formal XState visual editor',
+        weaknesses_and_gaps: 'Too developer-heavy for UX architects needing UI state matrices'
+      })
+    });
+    assert.equal(compRes.status, 201);
+
+    const exportRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/export?format=markdown`);
+    assert.equal(exportRes.status, 200);
+    const mdText = await exportRes.text();
+    assert.ok(mdText.includes('# STRAW Opportunity Dossier: StateCraft UX'));
+    assert.ok(mdText.includes('Stately Studio'));
+
+    // Phase 3: Dependency & Stage-Order Diagnostics
+    const prod = ctx.executionEngine.getProductById('prod-sentinel-a11y');
+    assert.ok(prod.dependency_diagnostics.next_critical_task);
+    assert.equal(prod.dependency_diagnostics.next_critical_task.stage_number, 7);
+
+    // Phase 4: Search Intent Clusters & Unit Economics
+    const clusterRes = await fetch(`${baseUrl}/api/products/prod-sentinel-a11y/clusters`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic_cluster: 'EAA 2026 SaaS Accessibility Readiness',
+        intent_type: 'compliance_checklist',
+        target_query_pattern: 'european accessibility act figma checklist',
+        conversion_asset: 'Sentinel A11y Starter Kit',
+        demand_evidence_tier: 'verified_evidence'
+      })
+    });
+    assert.equal(clusterRes.status, 201);
+    const clusterJson = await clusterRes.json();
+    assert.ok(clusterJson.workspace.search_intent_clusters.length >= 2);
+    assert.ok(clusterJson.workspace.unit_economics.ltv_cac_status.includes('INSUFFICIENT_VERIFIED_DATA'));
+
+    // Phase 5: Proactive AI Business Intelligence Recommendations
+    const biRes = await fetch(`${baseUrl}/api/intelligence/recommendations`);
+    assert.equal(biRes.status, 200);
+    const biJson = await biRes.json();
+    assert.ok(biJson.proactive_intelligence.proactive_action_queue.length >= 2);
+    assert.ok(biJson.proactive_intelligence.unexplored_high_fit_categories.length >= 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

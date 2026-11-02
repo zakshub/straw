@@ -55,6 +55,10 @@ export class OpportunityEngine {
       .prepare('SELECT * FROM market_evidence WHERE opportunity_id = ? ORDER BY observed_at DESC')
       .all(row.id);
 
+    const competitors = this.db
+      .prepare('SELECT * FROM opportunity_competitors WHERE opportunity_id = ? ORDER BY created_at ASC')
+      .all(row.id);
+
     const requiredCapabilities = JSON.parse(row.required_capabilities_json || '[]');
     const newSkillsNeeded = JSON.parse(row.new_skills_needed_json || '[]');
     const dimensionInputs = JSON.parse(row.dimension_inputs_json || '{}');
@@ -73,8 +77,160 @@ export class OpportunityEngine {
       dimension_inputs: dimensionInputs,
       score_breakdown: scoreBreakdown,
       capability_fit_detail: capabilityFit,
-      evidence
+      evidence,
+      competitors
     };
+  }
+
+  addCompetitor(
+    opportunityId,
+    {
+      competitor_name,
+      pricing_model = 'Unknown / Unverified',
+      strengths = '',
+      weaknesses_and_gaps = '',
+      threat_level = 'moderate',
+      evidence_tier = 'practitioner_observation',
+      source_ref = 'Direct inspection'
+    }
+  ) {
+    const opp = this.db.prepare('SELECT id FROM opportunities WHERE id = ?').get(opportunityId);
+    if (!opp) throw new Error(`Opportunity ${opportunityId} not found.`);
+
+    const id = `comp-${crypto.randomUUID().slice(0, 8)}`;
+    const now = new Date().toISOString();
+
+    this.db
+      .prepare(`
+        INSERT INTO opportunity_competitors (
+          id, opportunity_id, competitor_name, pricing_model,
+          strengths, weaknesses_and_gaps, threat_level, evidence_tier, source_ref, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        id,
+        opportunityId,
+        competitor_name.trim(),
+        pricing_model.trim(),
+        strengths.trim(),
+        weaknesses_and_gaps.trim(),
+        threat_level,
+        evidence_tier,
+        source_ref.trim(),
+        now
+      );
+
+    return this.db.prepare('SELECT * FROM opportunity_competitors WHERE id = ?').get(id);
+  }
+
+  /**
+   * Non-destructively simulates how an opportunity's score and recommendation
+   * would change under hypothetical evidence, complexity, or dimension adjustments.
+   */
+  simulateOpportunityScore(opportunityId, overrides = {}) {
+    const current = this.getOpportunityById(opportunityId);
+    if (!current) throw new Error(`Opportunity ${opportunityId} not found.`);
+
+    const simulatedComplexity = overrides.dev_complexity || current.dev_complexity;
+    const simulatedCost =
+      overrides.operational_cost_monthly_usd !== undefined
+        ? Number(overrides.operational_cost_monthly_usd)
+        : current.operational_cost_monthly_usd;
+
+    const simulatedDimensions = {
+      ...current.dimension_inputs,
+      ...(overrides.dimension_inputs || {})
+    };
+
+    const simulatedEvidence = [...current.evidence];
+    if (overrides.simulate_verified_evidence) {
+      simulatedEvidence.push({
+        evidence_tier: 'verified_evidence',
+        claim_type: 'demand',
+        statement: 'Simulated verified demand evidence'
+      });
+    }
+
+    const simulatedCapAssessment = this.capabilityEngine.evaluateCapabilityFit({
+      requiredCapabilities: overrides.required_capabilities || current.required_capabilities,
+      newSkillsNeeded: overrides.new_skills_needed || current.new_skills_needed,
+      devComplexity: simulatedComplexity
+    });
+
+    const simulatedScore = scoreOpportunity({
+      dimensionInputs: simulatedDimensions,
+      evidenceRecords: simulatedEvidence,
+      capabilityAssessment: simulatedCapAssessment,
+      devComplexity: simulatedComplexity,
+      operationalCostMonthlyUsd: simulatedCost
+    });
+
+    return {
+      opportunity_id: opportunityId,
+      baseline_score: current.overall_score,
+      baseline_recommendation: current.recommendation,
+      simulated_score: simulatedScore.overall_score,
+      score_delta: Number((simulatedScore.overall_score - current.overall_score).toFixed(1)),
+      simulated_recommendation: simulatedScore.recommendation,
+      simulated_breakdown: simulatedScore
+    };
+  }
+
+  exportOpportunityDossierMarkdown(opportunityId) {
+    const opp = this.getOpportunityById(opportunityId);
+    if (!opp) throw new Error(`Opportunity ${opportunityId} not found.`);
+
+    const lines = [
+      `# STRAW Opportunity Dossier: ${opp.title}`,
+      ``,
+      `- **ID:** \`${opp.id}\``,
+      `- **Category:** ${opp.category}`,
+      `- **Status:** \`${opp.status.toUpperCase()}\``,
+      `- **Overall Score:** **${opp.overall_score} / 100**`,
+      `- **Decision Engine Recommendation:** \`${opp.recommendation}\``,
+      `- **Rationale:** ${opp.decision_rationale}`,
+      ``,
+      `---`,
+      ``,
+      `## 1. 15-Point Opportunity Evaluation`,
+      `1. **Problem Addressed:** ${opp.problem_statement}`,
+      `2. **Target Audience:** ${opp.target_audience}`,
+      `3. **Demand Summary:** ${opp.demand_summary}`,
+      `4. **Existing Competitors:** ${opp.competitors_summary}`,
+      `5. **Current Alternatives:** ${opp.alternatives_summary}`,
+      `6. **Market Gaps:** ${opp.market_gaps}`,
+      `7. **Differentiation Potential:** ${opp.differentiation_potential}`,
+      `8. **Development Complexity:** \`${opp.dev_complexity}\``,
+      `9. **Estimated Development Time:** ${opp.estimated_dev_days} days`,
+      `10. **Operational Cost:** $${opp.operational_cost_monthly_usd}/month`,
+      `11. **Monetization Model:** ${opp.monetization_model}`,
+      `12. **Customer Acquisition Strategy:** ${opp.acquisition_strategy}`,
+      `13. **Revenue Potential (Honest Note):** ${opp.revenue_potential_notes}`,
+      `14. **Main Risks:** ${opp.main_risks}`,
+      `15. **Owner Capability Fit (${opp.capability_fit_detail.fit_score}/10):** ${opp.capability_fit_detail.summary}`,
+      ``,
+      `## 2. Transparent 11-Dimension Score Breakdown`,
+      `| Dimension | Weight | Score (1-10) | Weighted Points |`,
+      `| :--- | :--- | :--- | :--- |`,
+      ...(opp.score_breakdown.dimensions || []).map(
+        (d) => `| ${d.label} | ${d.weight_pct}% | ${d.score_out_of_10}/10 | +${d.weighted_points} |`
+      ),
+      ``,
+      `## 3. Epistemic Market Evidence Ledger (${opp.evidence.length} Records)`,
+      ...opp.evidence.map(
+        (e) => `- **[${e.evidence_tier.toUpperCase()}] (${e.claim_type}):** ${e.statement} *(Source: ${e.source_citation})*`
+      ),
+      ``,
+      `## 4. Structured Competitor Matrix (${opp.competitors.length} Records)`,
+      ...(opp.competitors.length === 0
+        ? ['_No structured competitor rows logged yet._']
+        : opp.competitors.map(
+            (c) =>
+              `- **${c.competitor_name}** (${c.pricing_model} | Threat: \`${c.threat_level}\` | Provenance: \`${c.evidence_tier}\`): Strengths: ${c.strengths}. Gaps: ${c.weaknesses_and_gaps}.`
+          ))
+    ];
+
+    return lines.join('\n');
   }
 
   createOpportunity(payload) {

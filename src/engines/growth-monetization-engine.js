@@ -101,20 +101,95 @@ export class GrowthMonetizationEngine {
       .prepare('SELECT * FROM performance_metrics WHERE product_id = ? ORDER BY recorded_at DESC')
       .all(productId);
 
+    const searchClusters = this.db
+      .prepare('SELECT * FROM search_intent_clusters WHERE product_id = ? ORDER BY created_at DESC')
+      .all(productId);
+
     const monetizationRecommendations = MONETIZATION_MODELS.map((m) => ({
       ...m,
       is_category_match: m.best_for.includes(product.category)
     })).sort((a, b) => Number(b.is_category_match) - Number(a.is_category_match));
 
+    const unitEconomics = this.calculateUnitEconomics(product, metrics, channels);
+
     return {
       product,
       channels,
+      search_intent_clusters: searchClusters,
       metrics,
+      unit_economics: unitEconomics,
       monetization_recommendations: monetizationRecommendations,
       honest_telemetry_status:
         metrics.length === 0
           ? 'NO_METRICS_RECORDED: No analytics integration or manual ledger entries exist yet. STRAW never fabricates traffic or revenue figures.'
           : `${metrics.length} verified/manual performance ledger period(s) recorded.`
+    };
+  }
+
+  addSearchIntentCluster(
+    productId,
+    {
+      topic_cluster,
+      intent_type = 'tool_utility',
+      target_query_pattern,
+      conversion_asset,
+      demand_evidence_tier = 'practitioner_observation',
+      status = 'planned'
+    }
+  ) {
+    const id = `sic-${crypto.randomUUID().slice(0, 8)}`;
+    const now = new Date().toISOString();
+
+    this.db
+      .prepare(`
+        INSERT INTO search_intent_clusters (
+          id, product_id, topic_cluster, intent_type, target_query_pattern,
+          conversion_asset, demand_evidence_tier, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        id,
+        productId,
+        topic_cluster.trim(),
+        intent_type,
+        target_query_pattern.trim(),
+        conversion_asset.trim(),
+        demand_evidence_tier,
+        status,
+        now
+      );
+
+    return this.db.prepare('SELECT * FROM search_intent_clusters WHERE id = ?').get(id);
+  }
+
+  calculateUnitEconomics(product, metrics = [], channels = []) {
+    const activeChannelMonthlyBurn = channels
+      .filter((c) => c.status === 'active')
+      .reduce((sum, c) => sum + (Number(c.estimated_monthly_cost_usd) || 0), 0);
+
+    const recordedRevenueTotal = metrics.reduce((sum, m) => sum + (Number(m.revenue_usd) || 0), 0);
+    const recordedOpCostTotal = metrics.reduce((sum, m) => sum + (Number(m.operating_cost_usd) || 0), 0);
+    const netCashflowUsd = Number((recordedRevenueTotal - recordedOpCostTotal).toFixed(2));
+
+    const latestWithLtvCac = metrics.find(
+      (m) => m.ltv_usd !== null && m.ltv_usd > 0 && m.cac_usd !== null && m.cac_usd > 0
+    );
+
+    const ltvToCacRatio = latestWithLtvCac
+      ? Number((latestWithLtvCac.ltv_usd / latestWithLtvCac.cac_usd).toFixed(2))
+      : null;
+
+    return {
+      active_channel_monthly_burn_usd: activeChannelMonthlyBurn,
+      recorded_revenue_total_usd: recordedRevenueTotal,
+      recorded_op_cost_total_usd: recordedOpCostTotal,
+      net_cashflow_usd: netCashflowUsd,
+      ltv_to_cac_ratio: ltvToCacRatio,
+      ltv_cac_status: ltvToCacRatio
+        ? `Verified Ratio: ${ltvToCacRatio}x`
+        : 'INSUFFICIENT_VERIFIED_DATA (No fabricated LTV/CAC)',
+      break_even_units_at_49_usd:
+        activeChannelMonthlyBurn > 0 ? Math.ceil(activeChannelMonthlyBurn / 49) : 0
     };
   }
 

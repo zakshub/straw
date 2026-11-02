@@ -46,6 +46,13 @@ export function createStrawContext({ dbPath, skipSeed = false } = {}) {
     const evaluatingOpps = opportunities.filter((o) => o.status === 'evaluating' || o.status === 'discovered');
     const rejectedOpps = opportunities.filter((o) => o.status === 'rejected');
 
+    const proactiveIntelligence = intelligenceEngine.generateProactivePortfolioIntelligence({
+      capabilities: owner.capabilities,
+      opportunities,
+      products,
+      pendingApprovals
+    });
+
     return {
       owner,
       summary_counts: {
@@ -66,6 +73,7 @@ export function createStrawContext({ dbPath, skipSeed = false } = {}) {
         acquisition_channels: ACQUISITION_CHANNEL_CATALOG
       },
       ai_status: aiOrchestrator.getProviderStatus(),
+      proactive_intelligence: proactiveIntelligence,
       opportunities,
       products,
       pending_approvals: pendingApprovals,

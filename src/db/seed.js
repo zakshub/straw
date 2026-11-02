@@ -374,5 +374,35 @@ export function ensureSeeded(db, engines) {
     notes: 'Honest pre-launch ledger: $0 spent, $0 revenue. Traffic and conversion metrics will be logged only after Stage 14 Launch Gate is approved.'
   });
 
+  // 7. Seed Phase 2 Competitor Matrix Records & Phase 4 Search Intent Clusters
+  opportunityEngine.addCompetitor(opp1.opportunity.id, {
+    competitor_name: 'Stark for Figma',
+    pricing_model: '$15–$25/mo recurring SaaS',
+    strengths: 'Automated contrast checker plugin inside Figma.',
+    weaknesses_and_gaps: 'Recurring subscription fatigue; does not ship a pre-built WCAG 2.2 dual-mode Light/Dark component architecture.',
+    threat_level: 'moderate',
+    evidence_tier: 'verified_evidence',
+    source_ref: 'Stark public pricing & Figma Community reviews'
+  });
+
+  opportunityEngine.addCompetitor(opp1.opportunity.id, {
+    competitor_name: 'Generic Figma UI Kits (Untitled UI / Cabana)',
+    pricing_model: '$99–$299 one-time license',
+    strengths: 'Large component counts and marketing polish.',
+    weaknesses_and_gaps: 'Mechanical dark-mode inversion and missing WCAG 2.5.3 Label-in-Name programmatic specifications.',
+    threat_level: 'low',
+    evidence_tier: 'practitioner_observation',
+    source_ref: 'Design system competitive audit'
+  });
+
+  growthEngine.addSearchIntentCluster(prod1.id, {
+    topic_cluster: 'WCAG 2.5.3 Label in Name & 3.3.2 Form Accessibility Checklists',
+    intent_type: 'compliance_checklist',
+    target_query_pattern: 'wcag 2.2 label in name examples / accessible form design system figma',
+    conversion_asset: 'Free Interactive Browser WCAG Label Auditor + Starter Figma File',
+    demand_evidence_tier: 'verified_evidence',
+    status: 'drafting'
+  });
+
   return { seeded: true };
 }
