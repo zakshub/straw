@@ -477,18 +477,45 @@ export function checkExcerptInSourceContent(supportingExcerpt, retrievedSourceCo
  * Do not interpret a product listing, installation count, star count, or discussion count
  * as proof of willingness to pay.
  */
-export function detectUnsupportedWillingnessToPayClaim({ statement = '', claim_type = 'demand', supporting_excerpt = '' }) {
+export function detectUnsupportedWillingnessToPayClaim({
+  statement = '',
+  claim_type = 'demand',
+  supporting_excerpt = '',
+  source_url = '',
+  commercial_commitment_status = '',
+  transaction_reference = ''
+}) {
   // Strip explicit negative disclaimers (e.g. "not willingness to pay", "does not prove willingness to pay") before checking
   const sanitizedStatement = `${statement}`
     .toLowerCase()
     .replace(/(?:not|never|no|does\s+not\s+prove|not\s+commercial)\s+willing(?:ness)?\s+to\s+pay/gi, '');
   const excerptLower = `${supporting_excerpt}`.toLowerCase();
+  const urlLower = `${source_url}`.toLowerCase();
+  const combined = `${sanitizedStatement} ${excerptLower} ${urlLower}`;
 
-  const claimsWillingnessToPay =
+  const claimsWtpOrPricing =
     claim_type === 'pricing' ||
-    /willing(ness)?\s+to\s+pay|will\s+pay|paid\s+demand|proven\s+revenue|paying\s+customers|commercial\s+demand/i.test(
+    /willing(ness)?\s+to\s+pay|will\s+pay|paid\s+demand|proven\s+revenue|paying\s+customers|commercial\s+demand|commercial\s+commitment/i.test(
       sanitizedStatement
     );
+
+  // 1. Competitor published pricing is competitor activity, NEVER proof of buyer willingness to pay for our product!
+  const isCompetitorPricingOrDirectory =
+    urlLower.includes('/pricing') ||
+    urlLower.includes('getstark.co') ||
+    urlLower.includes('github.com/') ||
+    urlLower.includes('wordpress.org/plugins/') ||
+    /\b(competitor|competitor's|incumbent|existing\s+product|open-source|plugin\s+listing|pro\s+plan\s+is|team\s+plan\s+is|they\s+charge|competitor\s+charges)\b/i.test(
+      combined
+    );
+
+  if (claimsWtpOrPricing && isCompetitorPricingOrDirectory) {
+    return {
+      violates_wtp_rule: true,
+      reason:
+        'Published competitor pricing, directories, and repository listings reflect competitor activity in the market, not verified buyer willingness to pay, and do not prove willingness to pay or commercial commitment for our proposed product.'
+    };
+  }
 
   const hasExplicitPriceOrPaymentEvidence =
     /\$\d+|\d+\s*(usd|eur|gbp)|\/mo(nth)?|\/yr|\/year|paid\s+plan|paid\s+tier|pro\s+tier|annual\s+license|purchased|subscription\s+fee|paid\s+extension/i.test(
@@ -500,8 +527,8 @@ export function detectUnsupportedWillingnessToPayClaim({ statement = '', claim_t
       excerptLower
     ) && !hasExplicitPriceOrPaymentEvidence;
 
-  // Also check if claim_type === 'demand' relies solely on free install count or discussion count without pain/payment text
-  if (claimsWillingnessToPay && !hasExplicitPriceOrPaymentEvidence) {
+  // Also check if claim_type === 'demand' or pricing claim relies solely on free install count or discussion count without payment text
+  if (claimsWtpOrPricing && !hasExplicitPriceOrPaymentEvidence && !transaction_reference) {
     return {
       violates_wtp_rule: true,
       reason:
@@ -509,18 +536,25 @@ export function detectUnsupportedWillingnessToPayClaim({ statement = '', claim_t
     };
   }
 
-  // Task 4 Hardening: Interview responses, expressions of interest, and hypothetical pricing reactions
-  // cannot automatically become verified willingness-to-pay evidence. Only concrete, executed commitments qualify.
+  // 2. Interview responses, verbal interest, pricing reactions, and hypothetical statements check
   const isHypotheticalOrInterviewOnly =
+    commercial_commitment_status === 'verbal_interest' ||
+    commercial_commitment_status === 'pricing_reaction' ||
+    commercial_commitment_status === 'proposal_requested' ||
     /(?:interview|interviewee|interview\s+response|survey\s+response|call\s+notes?|verbal\s+quote|expressed\s+interest|hypothetical|would\s+pay|would\s+buy|willing\s+to\s+consider|said\s+they\s+would|might\s+buy|might\s+pay|stated\s+interest|pricing\s+reaction|price\s+reaction|verbal\s+interest)\b/i.test(
       `${sanitizedStatement} ${excerptLower}`
     );
-  const hasExecutedCommercialTransaction =
-    /(?:paid\s+pilot\s+(?:deposit|contract|invoice|agreement)|invoice\s+#?\d+|stripe\s+invoice|deposit\s+paid|pre-?order\s+deposit|receipt|billed\s+and\s+paid|commercial\s+license\s+purchased|active\s+paid\s+contract)\b/i.test(
-      `${sanitizedStatement} ${excerptLower}`
-    );
 
-  if (claimsWillingnessToPay && isHypotheticalOrInterviewOnly && !hasExecutedCommercialTransaction) {
+  const hasExecutedCommercialTransaction =
+    commercial_commitment_status === 'contract_signed' ||
+    commercial_commitment_status === 'purchase_order_confirmed' ||
+    commercial_commitment_status === 'payment_received' ||
+    (Boolean(transaction_reference) &&
+      /(?:paid\s+pilot\s+(?:deposit|contract|invoice|agreement)|invoice\s+#?\d+|stripe\s+invoice|deposit\s+paid|pre-?order\s+deposit|receipt|billed\s+and\s+paid|commercial\s+license\s+purchased|active\s+paid\s+contract)\b/i.test(
+        `${sanitizedStatement} ${excerptLower}`
+      ));
+
+  if (claimsWtpOrPricing && isHypotheticalOrInterviewOnly && !hasExecutedCommercialTransaction) {
     return {
       violates_wtp_rule: true,
       reason:
@@ -977,68 +1011,62 @@ export const COMMERCIAL_EVIDENCE_CATEGORIES = {
   problem_existence: 'Problem Existence',
   market_demand: 'Market Demand',
   competitor_activity: 'Competitor Activity',
-  willingness_to_pay: 'Willingness to Pay'
+  unverified_willingness_to_pay: 'Unverified Buyer Willingness to Pay',
+  verified_commercial_commitment: 'Verified Buyer Commercial Commitment',
+  willingness_to_pay: 'Verified Buyer Commercial Commitment' // backwards compatibility alias
+};
+
+export const COMMERCIAL_COMMITMENT_STATUSES = {
+  NONE: '',
+  VERBAL_INTEREST: 'verbal_interest',
+  PRICING_REACTION: 'pricing_reaction',
+  PROPOSAL_REQUESTED: 'proposal_requested',
+  CONTRACT_SIGNED: 'contract_signed',
+  PURCHASE_ORDER_CONFIRMED: 'purchase_order_confirmed',
+  PAYMENT_RECEIVED: 'payment_received'
 };
 
 /**
- * M-V1.1 Requirement 4: Classifies an evidence record into one of the four distinct
- * commercial validation categories:
- * 1. `willingness_to_pay` — Explicit customer payment, commercial pricing tier, paid pilot, or purchase proof.
- * 2. `competitor_activity` — Existing products, plugins, open-source repositories, or directory listings.
- * 3. `problem_existence` — Regulatory specifications, enforcement actions, technical failures, or workflow pain.
- * 4. `market_demand` — Active buyer search, compliance service demand, or practitioner adoption signals.
+ * Classifies an evidence record into one of the five distinct commercial validation categories:
+ * 1. `problem_existence` — Normative specifications, regulatory mandates, accessibility friction, audit failures.
+ * 2. `market_demand` — Active buyer search, problem discussions, or practitioner solution requests.
+ * 3. `competitor_activity` — Existing tools, plugins, open-source repos, AND published competitor pricing models.
+ * 4. `unverified_willingness_to_pay` — Expressions of interest, verbal interview quotes, survey price reactions.
+ * 5. `verified_commercial_commitment` — Binding contracts, confirmed POs, paid pilots, verified customer invoices.
  */
 export function classifyCommercialEvidenceCategory(ev = {}) {
   const claimType = String(ev.claim_type || 'demand').toLowerCase();
   const statement = String(ev.statement || '');
   const excerpt = String(ev.supporting_excerpt || '');
   const sourceUrl = String(ev.source_url || ev.original_source_url || '').toLowerCase();
-  const combined = `${statement} ${excerpt}`;
+  const commitmentStatus = String(ev.commercial_commitment_status || '').toLowerCase();
+  const txRef = String(ev.transaction_reference || '').trim();
+  const combined = `${statement} ${excerpt} ${sourceUrl}`;
 
-  const wtpCheck = detectUnsupportedWillingnessToPayClaim({
-    statement,
-    claim_type: claimType,
-    supporting_excerpt: excerpt
-  });
-
-  const hasExplicitDisclaimers =
+  // Negation check (e.g. "does not prove willingness to pay")
+  const hasExplicitNegation =
     /(?:not|never|no|does\s+not\s+prove|not\s+commercial)\s+willing(?:ness)?\s+to\s+pay|100%\s*free|free\s+open-?source|free\s+directory\s+plugin/i.test(
       combined
     );
 
-  const isHypotheticalOrInterviewReaction =
-    /(?:interview|interviewee|interview\s+response|survey\s+response|call\s+notes?|verbal\s+quote|expressed\s+interest|hypothetical|would\s+pay|would\s+buy|willing\s+to\s+consider|said\s+they\s+would|might\s+buy|might\s+pay|stated\s+interest|pricing\s+reaction|price\s+reaction|verbal\s+interest)\b/i.test(
-      combined
-    );
-  const hasExecutedCommercialTransaction =
-    /(?:paid\s+pilot\s+(?:deposit|contract|invoice|agreement)|invoice\s+#?\d+|stripe\s+invoice|deposit\s+paid|pre-?order\s+deposit|receipt|billed\s+and\s+paid|commercial\s+license\s+purchased|active\s+paid\s+contract)\b/i.test(
-      combined
-    );
-
-  const hasExplicitCustomerPaymentOrCommercialPrice =
-    !hasExplicitDisclaimers &&
-    !wtpCheck.violates_wtp_rule &&
-    (!isHypotheticalOrInterviewReaction || hasExecutedCommercialTransaction) &&
-    /\b(paid\s+\$\d+|paying\s+\$\d+|purchased|paid\s+pilot|pre-?order\s+deposit|billed\s+annually|per\s+month|per\s+seat|commercial\s+license|pro\s+plan\s+is\s+\$\d+|launch\s+plan\s+is\s+\$\d+|annual\s+license\s+\$\d+)\b/i.test(
-      combined
-    );
-
-  if (
-    hasExplicitCustomerPaymentOrCommercialPrice &&
-    (claimType === 'pricing' || /\b(paid|paying|pricing|plan|pilot|license|subscribed)\b/i.test(combined))
-  ) {
-    return 'willingness_to_pay';
-  }
-
-  if (
+  // 1. COMPETITOR ACTIVITY (MUST ALWAYS INCLUDE COMPETITOR PRICING PAGES & MODELS):
+  // Published competitor pricing pages, plans, open-source repos, plugins, or competitor claim types
+  const isCompetitorPricingOrActivity =
     claimType === 'competitor' ||
     sourceUrl.includes('github.com/') ||
     sourceUrl.includes('wordpress.org/plugins/') ||
-    /\b(existing\s+wordpress\.org\s+plugin|open-source\s+github\s+repository|competitor|incumbent)\b/i.test(statement)
-  ) {
+    sourceUrl.includes('/pricing') ||
+    sourceUrl.includes('getstark.co') ||
+    /\b(competitor|competitor's|existing\s+product|open-source\s+github|existing\s+wordpress\.org|incumbent|pro\s+plan\s+is\s+\$\d+|team\s+plan\s+is\s+\$\d+|pricing\s+page)\b/i.test(
+      combined
+    );
+
+  if (isCompetitorPricingOrActivity) {
     return 'competitor_activity';
   }
 
+  // 2. PROBLEM EXISTENCE:
+  // Normative specifications, regulatory directives, accessibility friction, bug reports, audit failures
   if (
     claimType === 'technical' ||
     claimType === 'risk' ||
@@ -1052,6 +1080,42 @@ export function classifyCommercialEvidenceCategory(ev = {}) {
     return 'problem_existence';
   }
 
+  // 3. VERIFIED BUYER COMMERCIAL COMMITMENT:
+  // Explicitly requires executed commercial transaction for OUR product (not competitors, not verbal promises):
+  // - contract_signed
+  // - purchase_order_confirmed
+  // - payment_received
+  // - or explicit verifiable transaction text with reference
+  const isVerifiedCommercialCommitment =
+    commitmentStatus === 'contract_signed' ||
+    commitmentStatus === 'purchase_order_confirmed' ||
+    commitmentStatus === 'payment_received' ||
+    (!hasExplicitNegation &&
+      Boolean(txRef || /inv_|po-|stripe|receipt|deposit\s+paid/i.test(combined)) &&
+      /\b(paid\s+pilot\s+deposit|paid\s+customer\s+invoice|pre-?order\s+deposit\s+paid|signed\s+(?:annual\s+)?license\s+contract|confirmed\s+purchase\s+order)\b/i.test(
+        combined
+      ));
+
+  if (isVerifiedCommercialCommitment) {
+    return 'verified_commercial_commitment';
+  }
+
+  // 4. UNVERIFIED BUYER WILLINGNESS TO PAY:
+  // Verbal expressions of interest, survey pricing reactions, interview quotes ("would pay $49"), proposal requests
+  const isUnverifiedWtp =
+    commitmentStatus === 'verbal_interest' ||
+    commitmentStatus === 'pricing_reaction' ||
+    commitmentStatus === 'proposal_requested' ||
+    (!hasExplicitNegation &&
+      /\b(interview|interviewee|interview\s+response|survey\s+response|call\s+notes?|verbal\s+quote|expressed\s+interest|hypothetical|would\s+pay|would\s+buy|willing\s+to\s+consider|said\s+they\s+would|might\s+buy|might\s+pay|stated\s+interest|pricing\s+reaction|price\s+reaction|proposal\s+requested|verbal\s+interest)\b/i.test(
+        combined
+      ));
+
+  if (isUnverifiedWtp) {
+    return 'unverified_willingness_to_pay';
+  }
+
+  // 5. DEFAULT TO MARKET DEMAND
   return 'market_demand';
 }
 
@@ -1160,10 +1224,17 @@ export function verifyAndClassifyEvidence(input, nowDate = new Date()) {
     methodology === 'llm_synthesis' ||
     detectedSourceName.toLowerCase().includes('ai hypothesis');
 
+  const commitmentStatus = String(input.commercial_commitment_status || '').trim();
+  const financialCommitmentUsd = Number(input.financial_commitment_usd) || 0;
+  const transactionReference = String(input.transaction_reference || '').trim();
+
   const wtpCheck = detectUnsupportedWillingnessToPayClaim({
     statement,
     claim_type: input.claim_type || 'demand',
-    supporting_excerpt: supportingExcerpt
+    supporting_excerpt: supportingExcerpt,
+    source_url: urlCheck.normalizedUrl || originalSourceUrl,
+    commercial_commitment_status: commitmentStatus,
+    transaction_reference: transactionReference
   });
 
   let finalTier = requestedTier;
@@ -1319,13 +1390,19 @@ export function verifyAndClassifyEvidence(input, nowDate = new Date()) {
     claim_type: input.claim_type || 'demand',
     statement,
     supporting_excerpt: supportingExcerpt,
-    source_url: urlCheck.normalizedUrl || originalSourceUrl
+    source_url: urlCheck.normalizedUrl || originalSourceUrl,
+    commercial_commitment_status: commitmentStatus,
+    financial_commitment_usd: financialCommitmentUsd,
+    transaction_reference: transactionReference
   });
 
   return {
     statement,
     claim_type: input.claim_type || 'demand',
     evidence_category: evidenceCategory,
+    commercial_commitment_status: commitmentStatus,
+    financial_commitment_usd: financialCommitmentUsd,
+    transaction_reference: transactionReference,
     requested_evidence_tier: requestedTier,
     evidence_tier: finalTier,
     source_citation: sourceCitation || urlCheck.normalizedUrl || 'No citation provided',
@@ -1506,12 +1583,16 @@ export function analyzeOpportunityEvidenceQuality(evidenceRecords = []) {
     problem_existence: { label: 'Problem Existence', verified: 0, total: 0 },
     market_demand: { label: 'Market Demand', verified: 0, total: 0 },
     competitor_activity: { label: 'Competitor Activity', verified: 0, total: 0 },
-    willingness_to_pay: { label: 'Willingness to Pay', verified: 0, total: 0 }
+    unverified_willingness_to_pay: { label: 'Unverified Buyer WTP', verified: 0, total: 0 },
+    verified_commercial_commitment: { label: 'Verified Commercial Commitment', verified: 0, total: 0 }
   };
 
   for (const ev of evidenceRecords) {
     const isStale = Boolean(ev.is_stale) || ev.verification_status === 'stale';
-    const catKey = classifyCommercialEvidenceCategory(ev);
+    let catKey = classifyCommercialEvidenceCategory(ev);
+    if (catKey === 'willingness_to_pay') {
+      catKey = 'verified_commercial_commitment';
+    }
     if (categoryCounts[catKey]) {
       categoryCounts[catKey].total += 1;
     }
@@ -1552,6 +1633,9 @@ export function analyzeOpportunityEvidenceQuality(evidenceRecords = []) {
     }
   }
 
+  // Alias for backwards compatibility
+  categoryCounts.willingness_to_pay = categoryCounts.verified_commercial_commitment;
+
   const hasConflict = contradictingRecords.length > 0 && supportingRecords.length > 0;
   const hasAnyContradiction = contradictingRecords.length > 0;
 
@@ -1575,6 +1659,11 @@ export function analyzeOpportunityEvidenceQuality(evidenceRecords = []) {
     portfolioConfidence = Number(Math.max(0.1, portfolioConfidence - 0.22).toFixed(2));
   }
 
+  const revenueReceivedCount = activeVerified.filter((e) => e.commercial_commitment_status === 'payment_received').length;
+  const signedCommitmentCount = activeVerified.filter(
+    (e) => e.commercial_commitment_status === 'contract_signed' || e.commercial_commitment_status === 'purchase_order_confirmed'
+  ).length;
+
   return {
     total_records: evidenceRecords.length,
     active_verified_count: activeVerified.length,
@@ -1583,7 +1672,19 @@ export function analyzeOpportunityEvidenceQuality(evidenceRecords = []) {
     verified_problem_count: categoryCounts.problem_existence.verified,
     verified_demand_count: categoryCounts.market_demand.verified,
     verified_competitor_count: categoryCounts.competitor_activity.verified,
-    verified_willingness_to_pay_count: categoryCounts.willingness_to_pay.verified,
+    unverified_willingness_to_pay_count: categoryCounts.unverified_willingness_to_pay.total,
+    verified_commercial_commitment_count: categoryCounts.verified_commercial_commitment.verified,
+    verified_willingness_to_pay_count: categoryCounts.verified_commercial_commitment.verified,
+    revenue_received_count: revenueReceivedCount,
+    signed_commitment_count: signedCommitmentCount,
+    total_committed_revenue_usd: activeVerified
+      .filter((e) => e.commercial_commitment_status === 'payment_received')
+      .reduce((sum, e) => sum + (Number(e.financial_commitment_usd) || 0), 0),
+    total_signed_contract_value_usd: activeVerified
+      .filter(
+        (e) => e.commercial_commitment_status === 'contract_signed' || e.commercial_commitment_status === 'purchase_order_confirmed'
+      )
+      .reduce((sum, e) => sum + (Number(e.financial_commitment_usd) || 0), 0),
     evidence_categories: categoryCounts,
     practitioner_observation_count: evidenceRecords.filter(
       (e) => e.evidence_tier === 'practitioner_observation' && !e.is_stale

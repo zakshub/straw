@@ -233,8 +233,11 @@ export class OpportunityEngine {
       problem_existence: { verified: 0, total: 0 },
       market_demand: { verified: 0, total: 0 },
       competitor_activity: { verified: 0, total: 0 },
-      willingness_to_pay: { verified: 0, total: 0 }
+      unverified_willingness_to_pay: { verified: 0, total: 0 },
+      verified_commercial_commitment: { verified: 0, total: 0 }
     };
+    const unverifiedWtp = cats.unverified_willingness_to_pay || { verified: 0, total: 0 };
+    const verifiedCommitment = cats.verified_commercial_commitment || cats.willingness_to_pay || { verified: 0, total: 0 };
     const linkedProduct = this.db
       .prepare('SELECT * FROM products WHERE opportunity_id = ? ORDER BY created_at DESC LIMIT 1')
       .get(opportunityId);
@@ -256,13 +259,18 @@ export class OpportunityEngine {
       ``,
       `---`,
       ``,
-      `## 1. Four-Category Commercial Evidence Classification`,
+      `## 1. Commercial Evidence Classification & Buyer Commitment Matrix (Enhanced Four-Category Commercial Evidence Classification)`,
       `| Commercial Evidence Category | Active Verified Sources | Total Recorded | Commercial Meaning |`,
       `| :--- | :---: | :---: | :--- |`,
       `| **1. Problem Existence** | **${cats.problem_existence.verified}** | ${cats.problem_existence.total} | Confirms technical, regulatory, or operational friction exists |`,
       `| **2. Market Demand** | **${cats.market_demand.verified}** | ${cats.market_demand.total} | Confirms target users actively search for or request a solution |`,
-      `| **3. Competitor Activity** | **${cats.competitor_activity.verified}** | ${cats.competitor_activity.total} | Confirms existing free or commercial tools/alternatives exist |`,
-      `| **4. Willingness to Pay** | **${cats.willingness_to_pay.verified}** | ${cats.willingness_to_pay.total} | Confirms real buyers pay money for this specific outcome |`,
+      `| **3. Competitor Activity** | **${cats.competitor_activity.verified}** | ${cats.competitor_activity.total} | Confirms existing tools exist & tracks published competitor pricing models (competitor pricing does not prove our product has buyers) |`,
+      `| **4. Unverified Buyer Willingness to Pay** | **${unverifiedWtp.verified}** | ${unverifiedWtp.total} | Tracks verbal interest, pricing reactions & discovery quotes (unverified interest) |`,
+      `| **5. Verified Commercial Commitment** | **${verifiedCommitment.verified}** | ${verifiedCommitment.total} | Confirms binding contracts, confirmed POs, paid pilots & verified customer invoices |`,
+      ``,
+      `> **REVENUE & COMMITMENT INTEGRITY RULES:**`,
+      `> - **Competitor Pricing Policy:** Published competitor pricing models reflect competitor activity in the market, NOT proof that our proposed product has paying customers.`,
+      `> - **Commercial Commitments vs. Received Revenue:** Signed contracts and confirmed purchase orders represent binding commercial commitments, NOT received revenue. Only received customer payments constitute verified revenue.`,
       ``,
       `## 2. Commercial Warnings & Unverified Assumptions Audit`,
       ...((opp.score_breakdown.warnings || []).length === 0
@@ -519,8 +527,8 @@ export class OpportunityEngine {
           confidence_score, source_reliability_score,
           verification_status, verification_notes,
           research_methodology, stance, is_stale, content_fingerprint, research_run_id,
-          evidence_category
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          evidence_category, commercial_commitment_status, financial_commitment_usd, transaction_reference
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         id,
@@ -551,7 +559,10 @@ export class OpportunityEngine {
         classified.is_stale,
         fingerprint,
         rawInput.research_run_id || null,
-        classified.evidence_category
+        classified.evidence_category,
+        classified.commercial_commitment_status || '',
+        Number(classified.financial_commitment_usd) || 0,
+        classified.transaction_reference || ''
       );
 
     if (!skipRescore) {

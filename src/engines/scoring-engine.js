@@ -273,10 +273,14 @@ export function scoreOpportunity({
   let recommendation = 'NEEDS_EVIDENCE';
   let decisionRationale = '';
 
+  const verifiedCommitmentCount = eq.verified_commercial_commitment_count ?? eq.verified_willingness_to_pay_count ?? 0;
+  const revenueReceivedCount = eq.revenue_received_count || 0;
+  const signedCommitmentCount = eq.signed_commitment_count || 0;
+
   const wtpNote =
-    (eq.verified_willingness_to_pay_count || 0) > 0
-      ? `Includes ${eq.verified_willingness_to_pay_count} verified willingness-to-pay signal(s).`
-      : 'NOTE: 0 verified willingness-to-pay sources recorded — commercial payment intent must be validated with real buyers before full build commitment.';
+    verifiedCommitmentCount > 0
+      ? `Includes ${verifiedCommitmentCount} verified commercial commitment(s) (${revenueReceivedCount} payment(s) received, ${signedCommitmentCount} signed contract/PO commitment(s); note that signed contracts are commitments, not received revenue).`
+      : 'NOTE: 0 verified commercial commitments recorded (competitor pricing does not prove customer willingness to pay for our product) — commercial payment intent must be validated with real buyers before full build commitment.';
 
   if (blockers.length > 0 || overallScore < 52 || rawScores.problem_severity <= 3.5) {
     recommendation = 'REJECT_WEAK_IDEA';
@@ -313,7 +317,13 @@ export function scoreOpportunity({
       verified_problem_count: eq.verified_problem_count || 0,
       verified_demand_count: eq.verified_demand_count || 0,
       verified_competitor_count: eq.verified_competitor_count || 0,
+      unverified_willingness_to_pay_count: eq.unverified_willingness_to_pay_count || 0,
+      verified_commercial_commitment_count: eq.verified_commercial_commitment_count || 0,
       verified_willingness_to_pay_count: eq.verified_willingness_to_pay_count || 0,
+      revenue_received_count: eq.revenue_received_count || 0,
+      signed_commitment_count: eq.signed_commitment_count || 0,
+      total_committed_revenue_usd: eq.total_committed_revenue_usd || 0,
+      total_signed_contract_value_usd: eq.total_signed_contract_value_usd || 0,
       evidence_categories: eq.evidence_categories || {},
       independent_origins_count: eq.independent_verified_origins_count,
       practitioner_observation_count: observationCount,

@@ -351,6 +351,19 @@ export function runMigrations(db) {
   // Milestone M-V1.1: Commercial evidence category & legacy batch-hash repair
   ensureColumn(db, 'market_evidence', 'evidence_category', "TEXT NOT NULL DEFAULT 'market_demand'");
 
+  // Commercial Evidence Integrity: Structured commercial commitment tracking
+  ensureColumn(db, 'market_evidence', 'commercial_commitment_status', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'market_evidence', 'financial_commitment_usd', "REAL NOT NULL DEFAULT 0");
+  ensureColumn(db, 'market_evidence', 'transaction_reference', "TEXT NOT NULL DEFAULT ''");
+
+  // Migration: Ensure any competitor pricing URLs previously misclassified as willingness_to_pay are moved to competitor_activity
+  db.exec(`
+    UPDATE market_evidence
+    SET evidence_category = 'competitor_activity'
+    WHERE (evidence_category = 'willingness_to_pay' OR evidence_category = 'verified_commercial_commitment')
+      AND (source_url LIKE '%/pricing%' OR source_url LIKE '%getstark.co%' OR claim_type = 'competitor');
+  `);
+
   // Milestone M-V1.3: Selected Opportunity MVP Planning fields on products
   ensureColumn(db, 'products', 'target_audience', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'products', 'mvp_must_have_features', "TEXT NOT NULL DEFAULT ''");

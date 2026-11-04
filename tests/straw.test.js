@@ -225,6 +225,7 @@ test('2. Milestone 2 — Actual Evidence Verification: URL format vs content ver
   const interviewEv = ctx.opportunityEngine.addEvidence(opportunity.id, {
     claim_type: 'pricing',
     statement: 'Customer interview response: 5 design leads said they would definitely pay $49 for this tool.',
+    commercial_commitment_status: 'pricing_reaction',
     evidence_tier: 'verified_evidence',
     source_url: 'https://news.ycombinator.com/item?id=99999999',
     supporting_excerpt: 'Lead stated they would pay $49 if this token checker existed.',
@@ -234,12 +235,62 @@ test('2. Milestone 2 — Actual Evidence Verification: URL format vs content ver
   });
   assert.equal(interviewEv.evidence_tier, 'practitioner_observation', 'Interview response must be downgraded from verified_evidence');
   assert.equal(interviewEv.verification_status, 'downgraded_unverified');
-  assert.equal(interviewEv.evidence_category, 'market_demand', 'Interview pricing reaction must classify as market_demand, NOT willingness_to_pay');
+  assert.equal(interviewEv.evidence_category, 'unverified_willingness_to_pay', 'Interview pricing reaction must classify as unverified_willingness_to_pay');
 
-  // Concrete executed transaction qualifies for willingness_to_pay
+  // Case F3 (Adversarial Negation & Competitor Pricing):
+  const negationWtpCheck = detectUnsupportedWillingnessToPayClaim({
+    claim_type: 'competitor',
+    statement: 'Free plugin has 50,000 installs but does not prove willingness to pay.',
+    supporting_excerpt: 'Active installations: 50,000+ in directory.'
+  });
+  assert.equal(negationWtpCheck.violates_wtp_rule, false);
+
+  // Competitor published pricing MUST classify as competitor_activity and violate WTP claim
+  const compPricingCheck = detectUnsupportedWillingnessToPayClaim({
+    claim_type: 'pricing',
+    statement: 'Competitor pricing proves buyers will pay $199/yr for accessibility tools.',
+    source_url: 'https://www.getstark.co/pricing/',
+    supporting_excerpt: 'Pro plan is $199 per year billed annually.'
+  });
+  assert.equal(compPricingCheck.violates_wtp_rule, true, 'Competitor pricing must violate buyer WTP rule');
+  assert.ok(compPricingCheck.reason.includes('competitor activity in the market, not verified buyer willingness to pay'));
+
+  const compPricingEv = ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'competitor',
+    statement: 'Competitor Stark published pricing: $199 per year for team tier.',
+    source_url: 'https://www.getstark.co/pricing/',
+    supporting_excerpt: 'Pro plan is $199 per year billed annually for teams.',
+    retrieved_source_content: 'Stark Pricing: Pro plan is $199 per year billed annually for teams.',
+    http_status: 200,
+    evidence_tier: 'verified_evidence'
+  });
+  assert.equal(compPricingEv.evidence_category, 'competitor_activity', 'Competitor pricing must classify as competitor_activity');
+  assert.equal(compPricingEv.verification_status, 'verified');
+
+  // Case F4: Signed but unpaid commercial agreement (contract_signed / PO confirmed)
+  const signedAgreementEv = ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'pricing',
+    statement: 'Signed commercial agreement: Enterprise design team executed $2,400 contract with confirmed PO #PO-9921.',
+    commercial_commitment_status: 'contract_signed',
+    financial_commitment_usd: 2400,
+    transaction_reference: 'PO-9921',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://news.ycombinator.com/item?id=88888888',
+    supporting_excerpt: 'Countersigned Enterprise Agreement: Annual license $2,400 confirmed under PO #PO-9921.',
+    retrieved_source_content: 'Record: Countersigned Enterprise Agreement: Annual license $2,400 confirmed under PO #PO-9921. Status: Signed.',
+    http_status: 200,
+    retrieved_at: '2026-10-20T00:00:00Z'
+  });
+  assert.equal(signedAgreementEv.evidence_category, 'verified_commercial_commitment');
+  assert.equal(signedAgreementEv.verification_status, 'verified');
+  assert.equal(signedAgreementEv.commercial_commitment_status, 'contract_signed');
+
+  // Case F5: Concrete executed paid transaction qualifies for verified_commercial_commitment AND received revenue
   const paidPilotWtpCheck = detectUnsupportedWillingnessToPayClaim({
     claim_type: 'pricing',
     statement: 'Signed paid pilot agreement with agency partner paying $500 pilot fee.',
+    commercial_commitment_status: 'payment_received',
+    transaction_reference: 'inv_agency_001',
     supporting_excerpt: 'Paid pilot deposit paid $500 on Stripe invoice inv_agency_001.'
   });
   assert.equal(paidPilotWtpCheck.violates_wtp_rule, false, 'Executed paid pilot transaction must not violate WTP rule');
@@ -247,6 +298,9 @@ test('2. Milestone 2 — Actual Evidence Verification: URL format vs content ver
   const executedWtpEv = ctx.opportunityEngine.addEvidence(opportunity.id, {
     claim_type: 'pricing',
     statement: 'Signed paid pilot agreement with agency partner paying $500 pilot fee.',
+    commercial_commitment_status: 'payment_received',
+    financial_commitment_usd: 500,
+    transaction_reference: 'inv_agency_001',
     evidence_tier: 'verified_evidence',
     source_url: 'https://billing.stripe.com/p/inv_agency_001',
     supporting_excerpt: 'Paid pilot deposit paid $500 on Stripe invoice inv_agency_001.',
@@ -256,7 +310,8 @@ test('2. Milestone 2 — Actual Evidence Verification: URL format vs content ver
   });
   assert.equal(executedWtpEv.evidence_tier, 'verified_evidence');
   assert.equal(executedWtpEv.verification_status, 'verified');
-  assert.equal(executedWtpEv.evidence_category, 'willingness_to_pay', 'Executed paid pilot must classify as willingness_to_pay');
+  assert.equal(executedWtpEv.evidence_category, 'verified_commercial_commitment');
+  assert.equal(executedWtpEv.commercial_commitment_status, 'payment_received');
 
   // Case G: Valid URL + retrieved HTTP 200 source content where supporting_excerpt IS genuinely present in the retrieved source
   const realVerified = ctx.opportunityEngine.addEvidence(opportunity.id, {
@@ -1547,11 +1602,33 @@ test('8. Milestone M-V1.1 — Evidence Integrity: Per-item SHA-256 hash attribut
     }),
     verifyAndClassifyEvidence({
       evidence_tier: 'verified_evidence',
-      claim_type: 'pricing',
-      statement: 'Verified buyer willingness to pay: 3 agencies paid $199 for an early-access commercial license pilot.',
+      claim_type: 'competitor',
+      statement: 'Competitor published pricing page: Stark charges $199/yr for agency teams (proves competitor market pricing, NOT buyer WTP for our product).',
       source_url: 'https://www.getstark.co/pricing/',
       supporting_excerpt: 'Team commercial license plan is $199 per year billed annually for agency teams.',
       retrieved_source_content: 'Pricing page: Team commercial license plan is $199 per year billed annually for agency teams.',
+      http_status: 200
+    }),
+    verifyAndClassifyEvidence({
+      evidence_tier: 'verified_evidence',
+      claim_type: 'pricing',
+      statement: 'Discovery interview feedback: 3 leads stated they would pay $49 for our proposed tool.',
+      commercial_commitment_status: 'pricing_reaction',
+      source_url: 'https://news.ycombinator.com/item?id=99999999',
+      supporting_excerpt: 'Lead stated they would pay $49 if this token checker existed.',
+      retrieved_source_content: 'Transcript: Lead stated they would pay $49 if this token checker existed.',
+      http_status: 200
+    }),
+    verifyAndClassifyEvidence({
+      evidence_tier: 'verified_evidence',
+      claim_type: 'pricing',
+      statement: 'Verified commercial commitment: Paid pilot agreement with Acme Studio ($500 deposit).',
+      commercial_commitment_status: 'payment_received',
+      financial_commitment_usd: 500,
+      transaction_reference: 'inv_acme_pilot_001',
+      source_url: 'https://billing.stripe.com/p/inv_acme_pilot_001',
+      supporting_excerpt: 'Stripe Receipt: Paid pilot deposit paid $500 on invoice inv_acme_pilot_001.',
+      retrieved_source_content: 'Stripe Receipt: Paid pilot deposit paid $500 on invoice inv_acme_pilot_001. Status: Paid.',
       http_status: 200
     })
   ];
@@ -1559,13 +1636,19 @@ test('8. Milestone M-V1.1 — Evidence Integrity: Per-item SHA-256 hash attribut
   assert.equal(sampleEvs[0].evidence_category, 'problem_existence');
   assert.equal(sampleEvs[1].evidence_category, 'market_demand');
   assert.equal(sampleEvs[2].evidence_category, 'competitor_activity');
-  assert.equal(sampleEvs[3].evidence_category, 'willingness_to_pay');
+  assert.equal(sampleEvs[3].evidence_category, 'competitor_activity', 'Competitor published pricing MUST classify as competitor_activity');
+  assert.equal(sampleEvs[4].evidence_category, 'unverified_willingness_to_pay');
+  assert.equal(sampleEvs[5].evidence_category, 'verified_commercial_commitment');
 
   const eqSummary = analyzeOpportunityEvidenceQuality(sampleEvs);
   assert.equal(eqSummary.verified_problem_count, 1);
   assert.equal(eqSummary.verified_demand_count, 1);
-  assert.equal(eqSummary.verified_competitor_count, 1);
-  assert.equal(eqSummary.verified_willingness_to_pay_count, 1);
+  assert.equal(eqSummary.verified_competitor_count, 2);
+  assert.equal(eqSummary.unverified_willingness_to_pay_count, 1);
+  assert.equal(eqSummary.verified_commercial_commitment_count, 1);
+  assert.equal(eqSummary.verified_willingness_to_pay_count, 1); // backwards compatibility
+  assert.equal(eqSummary.revenue_received_count, 1);
+  assert.equal(eqSummary.total_committed_revenue_usd, 500);
 });
 
 test('9. Milestone M-V1.2 — Commercial Evaluation: Commercial readiness vs technical feasibility separation, WTP gating & dossier assumption labeling', async () => {
@@ -1668,11 +1751,11 @@ test('9. Milestone M-V1.2 — Commercial Evaluation: Commercial readiness vs tec
   assert.ok(dossierMd.includes('[UNVERIFIED COMMERCIAL ASSUMPTION — TARGET CUSTOMER]'));
   assert.ok(dossierMd.includes('[UNVERIFIED COMMERCIAL ASSUMPTION — REVENUE PROJECTION]'));
 
-  // 3. Now add a verified willingness_to_pay record and verify commercial readiness unlocks
+  // 3. Competitor pricing must classify as competitor_activity and NOT unlock commercial readiness
   ctx.opportunityEngine.addEvidence(opp.id, {
     evidence_tier: 'verified_evidence',
-    claim_type: 'pricing',
-    statement: 'Verified buyer willingness to pay: 4 design system leads paid $49 for early-access token validator licenses.',
+    claim_type: 'competitor',
+    statement: 'Competitor pricing: Stark charges $49/seat for pro team tier.',
     source_url: 'https://www.getstark.co/pricing/',
     supporting_excerpt: 'Pro commercial license plan is $49 per seat billed annually for design teams.',
     retrieved_source_content: 'Stark Pricing: Pro commercial license plan is $49 per seat billed annually for design teams.',
@@ -1680,12 +1763,37 @@ test('9. Milestone M-V1.2 — Commercial Evaluation: Commercial readiness vs tec
     retrieved_at: '2026-10-25T00:00:00Z'
   });
 
+  const hydratedAfterCompPricing = ctx.opportunityEngine.getOpportunityById(opp.id);
+  assert.equal(
+    hydratedAfterCompPricing.commercial_validation_status,
+    'UNVERIFIED_WILLINGNESS_TO_PAY',
+    'Competitor pricing MUST NOT unlock verified commercial status'
+  );
+  assert.equal(hydratedAfterCompPricing.score_breakdown.evidence_summary.verified_commercial_commitment_count, 0);
+
+  // 4. Now add a genuine verified commercial commitment (payment_received) and verify commercial readiness unlocks
+  ctx.opportunityEngine.addEvidence(opp.id, {
+    evidence_tier: 'verified_evidence',
+    claim_type: 'pricing',
+    statement: 'Verified buyer commercial commitment: 4 design leads paid $49 for early-access token validator licenses.',
+    commercial_commitment_status: 'payment_received',
+    financial_commitment_usd: 196,
+    transaction_reference: 'inv_pilot_early_001',
+    source_url: 'https://billing.stripe.com/p/inv_pilot_early_001',
+    supporting_excerpt: 'Stripe Receipt: 4 early-access developer licenses paid $196 total on invoice inv_pilot_early_001.',
+    retrieved_source_content: 'Stripe Receipt: 4 early-access developer licenses paid $196 total on invoice inv_pilot_early_001. Status: Succeeded.',
+    http_status: 200,
+    retrieved_at: '2026-10-25T00:00:00Z'
+  });
+
   const hydratedWithWtp = ctx.opportunityEngine.getOpportunityById(opp.id);
   assert.equal(hydratedWithWtp.commercial_validation_status, 'VERIFIED_BUYER_WTP');
   assert.equal(hydratedWithWtp.score_breakdown.evidence_summary.verified_willingness_to_pay_count, 1);
+  assert.equal(hydratedWithWtp.score_breakdown.evidence_summary.revenue_received_count, 1);
+  assert.equal(hydratedWithWtp.score_breakdown.evidence_summary.total_committed_revenue_usd, 196);
   assert.ok(
     hydratedWithWtp.commercial_readiness_score > 80,
-    `Commercial readiness (${hydratedWithWtp.commercial_readiness_score}) should unlock above 80 once WTP is verified`
+    `Commercial readiness (${hydratedWithWtp.commercial_readiness_score}) should unlock above 80 once verified commercial commitment is confirmed`
   );
 });
 

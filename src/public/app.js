@@ -55,14 +55,17 @@ function renderEvidenceTierBadge(tier) {
 }
 
 function renderEvidenceCategoryBadge(category) {
-  if (category === 'willingness_to_pay') {
-    return `<span class="badge badge-verified">[4. WILLINGNESS TO PAY]</span>`;
+  if (category === 'verified_commercial_commitment' || category === 'willingness_to_pay') {
+    return `<span class="badge badge-verified">[5. VERIFIED COMMERCIAL COMMITMENT]</span>`;
   }
-  if (category === 'market_demand') {
-    return `<span class="badge badge-info">[2. MARKET DEMAND]</span>`;
+  if (category === 'unverified_willingness_to_pay') {
+    return `<span class="badge badge-warn">[4. UNVERIFIED BUYER WTP]</span>`;
   }
   if (category === 'competitor_activity') {
     return `<span class="badge badge-warn">[3. COMPETITOR ACTIVITY]</span>`;
+  }
+  if (category === 'market_demand') {
+    return `<span class="badge badge-info">[2. MARKET DEMAND]</span>`;
   }
   return `<span class="badge badge-info">[1. PROBLEM EXISTENCE]</span>`;
 }
