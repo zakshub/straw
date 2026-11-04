@@ -1521,3 +1521,124 @@ test('8. Milestone M-V1.1 — Evidence Integrity: Per-item SHA-256 hash attribut
   assert.equal(eqSummary.verified_competitor_count, 1);
   assert.equal(eqSummary.verified_willingness_to_pay_count, 1);
 });
+
+test('9. Milestone M-V1.2 — Commercial Evaluation: Commercial readiness vs technical feasibility separation, WTP gating & dossier assumption labeling', async () => {
+  const ctx = createStrawContext({ dbPath: ':memory:' });
+
+  // 1. Create an opportunity with high raw dimension inputs (9/10 across the board)
+  //    but attach ONLY verified problem_existence (W3C spec) and competitor_activity (GitHub repo)
+  const { opportunity: opp } = ctx.opportunityEngine.createOpportunity({
+    title: 'SpecOnly Token Validator',
+    category: 'Browser Based Utilities',
+    problem_statement: 'Designers struggle to audit WCAG 2.2 token contrast ratios across light and dark modes.',
+    target_audience: 'Design system teams at B2B SaaS companies',
+    demand_summary: 'Spec and open-source tools exist.',
+    competitors_summary: 'Open-source GitHub scripts.',
+    alternatives_summary: 'Manual spreadsheet checks.',
+    market_gaps: 'Automated token export.',
+    differentiation_potential: 'Zero-setup browser inspector.',
+    dev_complexity: 'low',
+    estimated_dev_days: 7,
+    operational_cost_monthly_usd: 0,
+    monetization_model: '$49 one-time license',
+    acquisition_strategy: 'Organic search',
+    revenue_potential_notes: '$3,000/month within 90 days',
+    main_risks: 'Free open-source tools may satisfy users.',
+    required_capabilities: ['UX/UI Design', 'HTML/CSS', 'AI Assisted Software Development'],
+    new_skills_needed: [],
+    dimension_inputs: {
+      problem_severity: 9.0,
+      demand_evidence: 9.5,
+      audience_accessibility: 8.5,
+      competition_intensity: 8.0,
+      differentiation: 9.0,
+      development_feasibility: 9.5,
+      initial_investment: 9.5,
+      monetization_potential: 9.5,
+      time_to_first_revenue: 8.5,
+      long_term_scalability: 8.5
+    }
+  });
+
+  // Add 1 verified problem_existence finding (W3C spec) and 1 verified competitor_activity finding (GitHub repo)
+  ctx.opportunityEngine.addEvidence(opp.id, {
+    evidence_tier: 'verified_evidence',
+    claim_type: 'technical',
+    statement: 'W3C WCAG 2.2 normative specification defines minimum contrast requirements.',
+    source_url: 'https://www.w3.org/TR/WCAG22/',
+    supporting_excerpt: 'Success Criterion 1.4.3 Contrast (Minimum) requires a contrast ratio of at least 4.5:1.',
+    retrieved_source_content:
+      'W3C WCAG 2.2 Normative Spec: Success Criterion 1.4.3 Contrast (Minimum) requires a contrast ratio of at least 4.5:1.',
+    http_status: 200,
+    retrieved_at: '2026-10-25T00:00:00Z'
+  });
+
+  ctx.opportunityEngine.addEvidence(opp.id, {
+    evidence_tier: 'verified_evidence',
+    claim_type: 'competitor',
+    statement: 'Open-source GitHub repository incluud/color-contrast-checker (27 stars; indicates technical alternative, not commercial willingness to pay).',
+    source_url: 'https://github.com/incluud/color-contrast-checker',
+    supporting_excerpt: 'Validate WCAG 2.2 AA/AAA contrast ratios and export tokens.',
+    retrieved_source_content: '{"description":"Validate WCAG 2.2 AA/AAA contrast ratios and export tokens."}',
+    http_status: 200,
+    retrieved_at: '2026-10-25T00:00:00Z'
+  });
+
+  const hydratedNoWtp = ctx.opportunityEngine.getOpportunityById(opp.id);
+  const sbNoWtp = hydratedNoWtp.score_breakdown;
+
+  // Verify problem existence + competitor activity are NOT mistaken for demand or willingness to pay
+  assert.equal(sbNoWtp.evidence_summary.verified_problem_count, 1);
+  assert.equal(sbNoWtp.evidence_summary.verified_competitor_count, 1);
+  assert.equal(sbNoWtp.evidence_summary.verified_demand_count, 0);
+  assert.equal(sbNoWtp.evidence_summary.verified_willingness_to_pay_count, 0);
+
+  const demandDim = sbNoWtp.dimensions.find((d) => d.key === 'demand_evidence');
+  const monetizationDim = sbNoWtp.dimensions.find((d) => d.key === 'monetization_potential');
+  assert.equal(demandDim.score_out_of_10, 6.5, 'Demand evidence must be capped at 6.5 when only problem/competitor sources exist');
+  assert.equal(monetizationDim.score_out_of_10, 6.5, 'Monetization potential must be capped at 6.5 when 0 WTP sources exist');
+
+  // Verify Commercial Readiness vs Technical Feasibility separation
+  assert.equal(hydratedNoWtp.commercial_validation_status, 'UNVERIFIED_WILLINGNESS_TO_PAY');
+  assert.ok(hydratedNoWtp.technical_feasibility_score >= 85, 'Technical feasibility should remain high (>= 85)');
+  assert.ok(
+    hydratedNoWtp.commercial_readiness_score <= 58,
+    `Commercial readiness (${hydratedNoWtp.commercial_readiness_score}) must be capped <= 58 when only problem/competitor evidence exists`
+  );
+  assert.ok(
+    hydratedNoWtp.technical_feasibility_score - hydratedNoWtp.commercial_readiness_score >= 25,
+    'Commercial readiness must be clearly separated from high technical feasibility'
+  );
+  assert.ok(sbNoWtp.warnings.some((w) => w.includes('[PROBLEM/COMPETITOR ONLY — NO VERIFIED DEMAND OR WTP]')));
+  assert.ok(sbNoWtp.warnings.some((w) => w.includes('[UNVERIFIED WILLINGNESS TO PAY]')));
+
+  // 2. Verify Dossier Markdown export includes disclaimer, dual sub-scores, 4-category table & assumption labels
+  const dossierMd = ctx.opportunityEngine.exportOpportunityDossierMarkdown(opp.id);
+  assert.ok(dossierMd.includes('SCORE DISCLAIMER:'));
+  assert.ok(dossierMd.includes('NOT a probability of commercial success'));
+  assert.ok(dossierMd.includes('Commercial Readiness Score:'));
+  assert.ok(dossierMd.includes('Technical & Capability Feasibility Score:'));
+  assert.ok(dossierMd.includes('Four-Category Commercial Evidence Classification'));
+  assert.ok(dossierMd.includes('[UNVERIFIED COMMERCIAL ASSUMPTION — TARGET CUSTOMER]'));
+  assert.ok(dossierMd.includes('[UNVERIFIED COMMERCIAL ASSUMPTION — REVENUE PROJECTION]'));
+
+  // 3. Now add a verified willingness_to_pay record and verify commercial readiness unlocks
+  ctx.opportunityEngine.addEvidence(opp.id, {
+    evidence_tier: 'verified_evidence',
+    claim_type: 'pricing',
+    statement: 'Verified buyer willingness to pay: 4 design system leads paid $49 for early-access token validator licenses.',
+    source_url: 'https://www.getstark.co/pricing/',
+    supporting_excerpt: 'Pro commercial license plan is $49 per seat billed annually for design teams.',
+    retrieved_source_content: 'Stark Pricing: Pro commercial license plan is $49 per seat billed annually for design teams.',
+    http_status: 200,
+    retrieved_at: '2026-10-25T00:00:00Z'
+  });
+
+  const hydratedWithWtp = ctx.opportunityEngine.getOpportunityById(opp.id);
+  assert.equal(hydratedWithWtp.commercial_validation_status, 'VERIFIED_BUYER_WTP');
+  assert.equal(hydratedWithWtp.score_breakdown.evidence_summary.verified_willingness_to_pay_count, 1);
+  assert.ok(
+    hydratedWithWtp.commercial_readiness_score > 80,
+    `Commercial readiness (${hydratedWithWtp.commercial_readiness_score}) should unlock above 80 once WTP is verified`
+  );
+});

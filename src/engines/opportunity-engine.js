@@ -73,7 +73,7 @@ export class OpportunityEngine {
     const requiredCapabilities = JSON.parse(row.required_capabilities_json || '[]');
     const newSkillsNeeded = JSON.parse(row.new_skills_needed_json || '[]');
     const dimensionInputs = JSON.parse(row.dimension_inputs_json || '{}');
-    const scoreBreakdown = JSON.parse(row.score_breakdown_json || '{}');
+    let scoreBreakdown = JSON.parse(row.score_breakdown_json || '{}');
 
     const capabilityFit = this.capabilityEngine.evaluateCapabilityFit({
       requiredCapabilities,
@@ -83,8 +83,31 @@ export class OpportunityEngine {
 
     const evidenceQuality = analyzeOpportunityEvidenceQuality(evidence);
 
+    if (
+      scoreBreakdown.commercial_readiness_score === undefined ||
+      scoreBreakdown.technical_feasibility_score === undefined ||
+      !scoreBreakdown.evidence_summary ||
+      scoreBreakdown.evidence_summary.verified_willingness_to_pay_count === undefined
+    ) {
+      scoreBreakdown = scoreOpportunity({
+        dimensionInputs,
+        evidenceRecords: evidence,
+        capabilityAssessment: capabilityFit,
+        devComplexity: row.dev_complexity,
+        operationalCostMonthlyUsd: row.operational_cost_monthly_usd
+      });
+    }
+
     return {
       ...row,
+      overall_score: scoreBreakdown.overall_score ?? row.overall_score,
+      commercial_readiness_score: scoreBreakdown.commercial_readiness_score ?? 0,
+      technical_feasibility_score: scoreBreakdown.technical_feasibility_score ?? 0,
+      commercial_validation_status:
+        scoreBreakdown.commercial_validation_status || 'UNVERIFIED_WILLINGNESS_TO_PAY',
+      score_disclaimer:
+        scoreBreakdown.score_disclaimer ||
+        'Structured prioritization index (0-100) for comparing candidate opportunities — NOT a probability of commercial success or revenue guarantee.',
       required_capabilities: requiredCapabilities,
       new_skills_needed: newSkillsNeeded,
       dimension_inputs: dimensionInputs,
@@ -206,23 +229,52 @@ export class OpportunityEngine {
     if (!opp) throw new Error(`Opportunity ${opportunityId} not found.`);
 
     const eq = opp.evidence_quality_summary;
+    const cats = eq.evidence_categories || {
+      problem_existence: { verified: 0, total: 0 },
+      market_demand: { verified: 0, total: 0 },
+      competitor_activity: { verified: 0, total: 0 },
+      willingness_to_pay: { verified: 0, total: 0 }
+    };
+    const linkedProduct = this.db
+      .prepare('SELECT * FROM products WHERE opportunity_id = ? ORDER BY created_at DESC LIMIT 1')
+      .get(opportunityId);
 
     const lines = [
       `# STRAW Opportunity & Market Research Dossier: ${opp.title}`,
       ``,
+      `> **SCORE DISCLAIMER:** ${opp.score_disclaimer}`,
+      ``,
       `- **ID:** \`${opp.id}\``,
       `- **Category:** ${opp.category}`,
       `- **Status:** \`${opp.status.toUpperCase()}\``,
-      `- **Overall Score:** **${opp.overall_score} / 100**`,
+      `- **Overall Priority Index:** **${opp.overall_score} / 100** _(heuristic prioritization index, NOT a probability of commercial success)_`,
+      `- **Commercial Readiness Score:** **${opp.commercial_readiness_score} / 100** (Status: \`${opp.commercial_validation_status}\`)`,
+      `- **Technical & Capability Feasibility Score:** **${opp.technical_feasibility_score} / 100**`,
       `- **Evidence Confidence:** **${Math.round(eq.average_confidence_score * 100)}%** (${eq.active_verified_count} active verified across ${eq.independent_verified_origins_count} origin(s), ${eq.stale_count} stale, ${eq.contradicting_count} contradicting)`,
       `- **Decision Engine Recommendation:** \`${opp.recommendation}\``,
       `- **Rationale:** ${opp.decision_rationale}`,
       ``,
       `---`,
       ``,
-      `## 1. 15-Point Opportunity Evaluation (Facts vs. Estimates Separated)`,
+      `## 1. Four-Category Commercial Evidence Classification`,
+      `| Commercial Evidence Category | Active Verified Sources | Total Recorded | Commercial Meaning |`,
+      `| :--- | :---: | :---: | :--- |`,
+      `| **1. Problem Existence** | **${cats.problem_existence.verified}** | ${cats.problem_existence.total} | Confirms technical, regulatory, or operational friction exists |`,
+      `| **2. Market Demand** | **${cats.market_demand.verified}** | ${cats.market_demand.total} | Confirms target users actively search for or request a solution |`,
+      `| **3. Competitor Activity** | **${cats.competitor_activity.verified}** | ${cats.competitor_activity.total} | Confirms existing free or commercial tools/alternatives exist |`,
+      `| **4. Willingness to Pay** | **${cats.willingness_to_pay.verified}** | ${cats.willingness_to_pay.total} | Confirms real buyers pay money for this specific outcome |`,
+      ``,
+      `## 2. Commercial Warnings & Unverified Assumptions Audit`,
+      ...((opp.score_breakdown.warnings || []).length === 0
+        ? [`- No active commercial or evidence warnings.`]
+        : (opp.score_breakdown.warnings || []).map((w) => `- **Warning:** ${w}`)),
+      `- **[UNVERIFIED COMMERCIAL ASSUMPTION — TARGET CUSTOMER]:** ${opp.target_audience}`,
+      `- **[UNVERIFIED COMMERCIAL ASSUMPTION — MONETIZATION HYPOTHESIS]:** ${opp.monetization_model}`,
+      `- **[UNVERIFIED COMMERCIAL ASSUMPTION — REVENUE PROJECTION]:** ${opp.revenue_potential_notes}`,
+      ``,
+      `## 3. 15-Point Opportunity Evaluation (Facts vs. Assumptions Explicitly Separated)`,
       `1. **Problem Addressed [FACT/OBSERVATION]:** ${opp.problem_statement}`,
-      `2. **Target Audience [SEGMENT]:** ${opp.target_audience}`,
+      `2. **Target Audience [CUSTOMER ASSUMPTION UNTIL BUYER VALIDATED]:** ${opp.target_audience}`,
       `3. **Demand Summary [EVIDENCE-BOUND]:** ${opp.demand_summary}`,
       `4. **Existing Competitors [MARKET FACT]:** ${opp.competitors_summary}`,
       `5. **Current Alternatives [WORKFLOW FACT]:** ${opp.alternatives_summary}`,
@@ -231,23 +283,26 @@ export class OpportunityEngine {
       `8. **Development Complexity [ESTIMATE]:** \`${opp.dev_complexity}\``,
       `9. **Estimated Development Time [ESTIMATE]:** ${opp.estimated_dev_days} days`,
       `10. **Operational Cost [ESTIMATE]:** $${opp.operational_cost_monthly_usd}/month`,
-      `11. **Monetization Model [STRATEGY]:** ${opp.monetization_model}`,
-      `12. **Customer Acquisition Strategy [STRATEGY]:** ${opp.acquisition_strategy}`,
-      `13. **Revenue Potential [UNVERIFIED ESTIMATE]:** ${opp.revenue_potential_notes}`,
+      `11. **Monetization Model [COMMERCIAL HYPOTHESIS]:** ${opp.monetization_model}`,
+      `12. **Customer Acquisition Strategy [DISTRIBUTION HYPOTHESIS]:** ${opp.acquisition_strategy}`,
+      `13. **Revenue Potential [UNVERIFIED COMMERCIAL ASSUMPTION]:** ${opp.revenue_potential_notes}`,
       `14. **Main Risks [RISK ANALYSIS]:** ${opp.main_risks}`,
       `15. **Owner Capability Fit [DETERMINISTIC FACT: ${opp.capability_fit_detail.fit_score}/10]:** ${opp.capability_fit_detail.summary}`,
       ``,
-      `## 2. Transparent 11-Dimension Score Breakdown`,
-      `| Dimension | Weight | Score (1-10) | Weighted Points |`,
-      `| :--- | :--- | :--- | :--- |`,
+      `## 4. Transparent 11-Dimension Score Breakdown`,
+      `| Dimension | Group | Weight | Score (1-10) | Weighted Points |`,
+      `| :--- | :--- | :--- | :--- | :--- |`,
       ...(opp.score_breakdown.dimensions || []).map(
-        (d) => `| ${d.label} | ${d.weight_pct}% | ${d.score_out_of_10}/10 | +${d.weighted_points} |`
+        (d) =>
+          `| ${d.label} | \`${d.dimension_group || 'general'}\` | ${d.weight_pct}% | ${d.score_out_of_10}/10 | +${d.weighted_points} |`
       ),
       ``,
-      `## 3. Attributed Market Evidence Library (${opp.evidence.length} Records)`,
+      `## 5. Attributed Market Evidence Library (${opp.evidence.length} Records)`,
       ...opp.evidence.map(
         (e) =>
-          `- **[${e.evidence_tier.toUpperCase()} | Status: ${e.verification_status} | Method: \`${
+          `- **[${e.evidence_tier.toUpperCase()} | Category: \`${
+            e.evidence_category || 'market_demand'
+          }\` | Status: ${e.verification_status} | Method: \`${
             e.verification_method || 'unverified'
           }\` | Conf: ${Math.round((e.confidence_score || 0.3) * 100)}% | Stance: ${e.stance}]** (${e.claim_type}): ${e.statement}\n  - *Original URL:* ${
             e.original_source_url || e.source_url || e.source_citation
@@ -260,13 +315,24 @@ export class OpportunityEngine {
           }\n  - *Excerpt / Verification Note:* ${e.supporting_excerpt || e.verification_notes}`
       ),
       ``,
-      `## 4. Structured Competitor Matrix (${opp.competitors.length} Records)`,
+      `## 6. Structured Competitor Matrix (${opp.competitors.length} Records)`,
       ...(opp.competitors.length === 0
         ? ['_No structured competitor rows logged yet._']
         : opp.competitors.map(
             (c) =>
               `- **${c.competitor_name}** (${c.pricing_model} | Threat: \`${c.threat_level}\` | Provenance: \`${c.evidence_tier}\`): Strengths: ${c.strengths}. Gaps: ${c.weaknesses_and_gaps}.`
-          ))
+          )),
+      ...(linkedProduct
+        ? [
+            ``,
+            `## 7. Selected Opportunity MVP Plan (${linkedProduct.name})`,
+            `- **MVP Summary:** ${linkedProduct.mvp_scope_summary || 'Defined in MVP workspace'}`,
+            `- **Must-Have V1 Features:** ${linkedProduct.mvp_must_have_features || linkedProduct.mvp_scope_summary || 'Pending specification'}`,
+            `- **Excluded Non-Goals (Scope Boundary):** ${linkedProduct.mvp_excluded_scope || 'All non-core features excluded from V1'}`,
+            `- **Pricing Hypothesis [UNVERIFIED UNTIL TESTED]:** ${linkedProduct.pricing_hypothesis || opp.monetization_model}`,
+            `- **Buyer Validation Criteria (Build / Pivot / Abandon):** ${linkedProduct.buyer_validation_criteria || 'Validate willingness to pay with target buyers before full engineering build.'}`
+          ]
+        : [])
     ];
 
     return lines.join('\n');

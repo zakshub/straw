@@ -18,10 +18,11 @@ if (cmd === 'status') {
   console.log(`Pending Approvals:    ${overview.summary_counts.pending_approvals}`);
   console.log(`Intelligence Memory:  ${overview.summary_counts.intelligence_records} entries`);
 
-  console.log('\nTop Opportunities by Transparent Score:');
+  console.log('\nTop Opportunities by Priority Index (Note: Heuristic index, NOT probability of commercial success):');
   for (const opp of overview.opportunities) {
+    const eq = opp.evidence_quality_summary || {};
     console.log(
-      `  - [${opp.overall_score}/100 | ${opp.recommendation} | ${opp.status.toUpperCase()}] ${opp.title} (${opp.category}) [Competitors: ${opp.competitors.length}, Evidence: ${opp.evidence.length}]`
+      `  - [Index: ${opp.overall_score}/100 | Comm: ${opp.commercial_readiness_score}/100 | Tech: ${opp.technical_feasibility_score}/100 | ${opp.recommendation} | ${opp.status.toUpperCase()}] ${opp.title} (${opp.category}) [Verified Ev: ${eq.active_verified_count || 0} (Prob:${eq.verified_problem_count || 0}, Dem:${eq.verified_demand_count || 0}, Comp:${eq.verified_competitor_count || 0}, WTP:${eq.verified_willingness_to_pay_count || 0})]`
     );
   }
 
