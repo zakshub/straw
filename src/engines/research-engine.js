@@ -411,14 +411,18 @@ const HIGH_RELIABILITY_DOMAINS = [
 ];
 
 /**
- * Strips HTML tags, decodes common HTML entities, and normalizes whitespace for content matching.
+ * Strips HTML tags, decodes common HTML entities, preserves JSON-LD (<script type="application/ld+json">)
+ * structured metadata descriptions while stripping executable <script> and <style> blocks,
+ * and normalizes whitespace for content matching.
  */
 export function normalizeTextForVerification(rawText) {
   if (!rawText) return '';
   return String(rawText)
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<script(?![^>]*application\/ld\+json)[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
+    .replace(/\\"/g, '"')
+    .replace(/\\\//g, '/')
     .replace(/&quot;/gi, '"')
     .replace(/&#x27;|&#39;|&apos;/gi, "'")
     .replace(/&amp;/gi, '&')
@@ -645,7 +649,13 @@ export function extractValidPublicUrl(rawUrl, fallbackText = '') {
     ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].forEach((p) =>
       parsed.searchParams.delete(p)
     );
-    const normalized = parsed.toString().replace(/\/$/, '');
+    // Preserve trailing slashes on non-root paths (e.g. /TR/WCAG22/ or /plugins/slug/)
+    // so canonical directory URLs do not trigger 301 redirect loops.
+    const serialized = parsed.toString();
+    const normalized =
+      parsed.pathname === '/' && !parsed.search && !urlStr.trim().endsWith('/')
+        ? serialized.replace(/\/$/, '')
+        : serialized;
     return {
       valid: true,
       ssrf_blocked: false,
@@ -936,11 +946,84 @@ export function computeEvidenceFingerprint({ opportunityId, normalizedUrl, state
     .replace(/\s+/g, ' ')
     .trim();
 
-  const basis = normalizedUrl
-    ? `${opportunityId}::${claimType}::${normalizedUrl.toLowerCase()}::${cleanStatement.slice(0, 120)}`
+  const canonicalDedupUrl = normalizedUrl ? String(normalizedUrl).toLowerCase().replace(/\/$/, '') : '';
+  const basis = canonicalDedupUrl
+    ? `${opportunityId}::${claimType}::${canonicalDedupUrl}::${cleanStatement.slice(0, 120)}`
     : `${opportunityId}::${claimType}::no-url::${cleanStatement}`;
 
   return crypto.createHash('sha256').update(basis).digest('hex').slice(0, 24);
+}
+
+export const COMMERCIAL_EVIDENCE_CATEGORIES = {
+  problem_existence: 'Problem Existence',
+  market_demand: 'Market Demand',
+  competitor_activity: 'Competitor Activity',
+  willingness_to_pay: 'Willingness to Pay'
+};
+
+/**
+ * M-V1.1 Requirement 4: Classifies an evidence record into one of the four distinct
+ * commercial validation categories:
+ * 1. `willingness_to_pay` — Explicit customer payment, commercial pricing tier, paid pilot, or purchase proof.
+ * 2. `competitor_activity` — Existing products, plugins, open-source repositories, or directory listings.
+ * 3. `problem_existence` — Regulatory specifications, enforcement actions, technical failures, or workflow pain.
+ * 4. `market_demand` — Active buyer search, compliance service demand, or practitioner adoption signals.
+ */
+export function classifyCommercialEvidenceCategory(ev = {}) {
+  const claimType = String(ev.claim_type || 'demand').toLowerCase();
+  const statement = String(ev.statement || '');
+  const excerpt = String(ev.supporting_excerpt || '');
+  const sourceUrl = String(ev.source_url || ev.original_source_url || '').toLowerCase();
+  const combined = `${statement} ${excerpt}`;
+
+  const wtpCheck = detectUnsupportedWillingnessToPayClaim({
+    statement,
+    claim_type: claimType,
+    supporting_excerpt: excerpt
+  });
+
+  const hasExplicitDisclaimers =
+    /(?:not|never|no|does\s+not\s+prove|not\s+commercial)\s+willing(?:ness)?\s+to\s+pay|100%\s*free|free\s+open-?source|free\s+directory\s+plugin/i.test(
+      combined
+    );
+
+  const hasExplicitCustomerPaymentOrCommercialPrice =
+    !hasExplicitDisclaimers &&
+    !wtpCheck.violates_wtp_rule &&
+    /\b(paid\s+\$\d+|paying\s+\$\d+|purchased|paid\s+pilot|pre-?order\s+deposit|billed\s+annually|per\s+month|per\s+seat|commercial\s+license|pro\s+plan\s+is\s+\$\d+|launch\s+plan\s+is\s+\$\d+|annual\s+license\s+\$\d+)\b/i.test(
+      combined
+    );
+
+  if (
+    hasExplicitCustomerPaymentOrCommercialPrice &&
+    (claimType === 'pricing' || /\b(paid|paying|pricing|plan|pilot|license|subscribed)\b/i.test(combined))
+  ) {
+    return 'willingness_to_pay';
+  }
+
+  if (
+    claimType === 'competitor' ||
+    sourceUrl.includes('github.com/') ||
+    sourceUrl.includes('wordpress.org/plugins/') ||
+    /\b(existing\s+wordpress\.org\s+plugin|open-source\s+github\s+repository|competitor|incumbent)\b/i.test(statement)
+  ) {
+    return 'competitor_activity';
+  }
+
+  if (
+    claimType === 'technical' ||
+    claimType === 'risk' ||
+    sourceUrl.includes('w3.org/') ||
+    sourceUrl.includes('europa.eu/') ||
+    sourceUrl.includes('ftc.gov/') ||
+    /\b(wcag|normative|specification|ftc\s+orders|misleading\s+claims|regulation|directive|struggle|fail\s+wcag|manual(ly)?\s+fixing|undocumented|missing\s+edge-case)\b/i.test(
+      combined
+    )
+  ) {
+    return 'problem_existence';
+  }
+
+  return 'market_demand';
 }
 
 /**
@@ -1203,9 +1286,17 @@ export function verifyAndClassifyEvidence(input, nowDate = new Date()) {
   if (isStale) confidence *= 0.45;
   confidence = Number(Math.max(0.05, Math.min(0.98, confidence)).toFixed(2));
 
+  const evidenceCategory = classifyCommercialEvidenceCategory({
+    claim_type: input.claim_type || 'demand',
+    statement,
+    supporting_excerpt: supportingExcerpt,
+    source_url: urlCheck.normalizedUrl || originalSourceUrl
+  });
+
   return {
     statement,
     claim_type: input.claim_type || 'demand',
+    evidence_category: evidenceCategory,
     requested_evidence_tier: requestedTier,
     evidence_tier: finalTier,
     source_citation: sourceCitation || urlCheck.normalizedUrl || 'No citation provided',
@@ -1382,8 +1473,20 @@ export function analyzeOpportunityEvidenceQuality(evidenceRecords = []) {
   const contradictingRecords = [];
   const verifiedOrigins = new Set();
 
+  const categoryCounts = {
+    problem_existence: { label: 'Problem Existence', verified: 0, total: 0 },
+    market_demand: { label: 'Market Demand', verified: 0, total: 0 },
+    competitor_activity: { label: 'Competitor Activity', verified: 0, total: 0 },
+    willingness_to_pay: { label: 'Willingness to Pay', verified: 0, total: 0 }
+  };
+
   for (const ev of evidenceRecords) {
     const isStale = Boolean(ev.is_stale) || ev.verification_status === 'stale';
+    const catKey = classifyCommercialEvidenceCategory(ev);
+    if (categoryCounts[catKey]) {
+      categoryCounts[catKey].total += 1;
+    }
+
     if (isStale) {
       staleRecords.push(ev);
     }
@@ -1408,6 +1511,9 @@ export function analyzeOpportunityEvidenceQuality(evidenceRecords = []) {
       ev.stance !== 'contradicting'
     ) {
       activeVerified.push(ev);
+      if (categoryCounts[catKey]) {
+        categoryCounts[catKey].verified += 1;
+      }
       const urlInfo = extractValidPublicUrl(ev.source_url, ev.source_citation);
       if (urlInfo.valid) {
         verifiedOrigins.add(urlInfo.hostname);
@@ -1445,6 +1551,11 @@ export function analyzeOpportunityEvidenceQuality(evidenceRecords = []) {
     active_verified_count: activeVerified.length,
     independent_verified_origins_count: verifiedOrigins.size,
     independent_origins: [...verifiedOrigins],
+    verified_problem_count: categoryCounts.problem_existence.verified,
+    verified_demand_count: categoryCounts.market_demand.verified,
+    verified_competitor_count: categoryCounts.competitor_activity.verified,
+    verified_willingness_to_pay_count: categoryCounts.willingness_to_pay.verified,
+    evidence_categories: categoryCounts,
     practitioner_observation_count: evidenceRecords.filter(
       (e) => e.evidence_tier === 'practitioner_observation' && !e.is_stale
     ).length,
@@ -1601,7 +1712,13 @@ export class ResearchEngine {
       params.push(evidenceTier);
     }
     sql += ' ORDER BY me.observed_at DESC';
-    return this.db.prepare(sql).all(...params);
+    return this.db
+      .prepare(sql)
+      .all(...params)
+      .map((r) => ({
+        ...r,
+        evidence_category: classifyCommercialEvidenceCategory(r)
+      }));
   }
 
   /**
@@ -2132,6 +2249,17 @@ export class ResearchEngine {
         const cleanDesc = normalizeTextForVerification(pl.short_description || pl.name);
         const pluginUrl = `https://wordpress.org/plugins/${pl.slug}/`;
         const verbatimExcerpt = cleanDesc.length >= 15 ? cleanDesc : `${pl.name} WordPress plugin (${pl.slug})`;
+        const itemSourceContent = JSON.stringify({
+          slug: pl.slug,
+          name: pl.name,
+          version: pl.version || null,
+          active_installs: pl.active_installs || 0,
+          rating: pl.rating || 0,
+          num_ratings: pl.num_ratings || 0,
+          last_updated: pl.last_updated || null,
+          short_description: pl.short_description || pl.name,
+          canonical_url: pluginUrl
+        });
 
         collectedRawFindings.push({
           claim_type: 'competitor',
@@ -2142,7 +2270,7 @@ export class ResearchEngine {
           final_source_url: pluginUrl,
           source_name: 'WordPress.org Official Plugin Directory API',
           supporting_excerpt: verbatimExcerpt,
-          retrieved_source_content: rawText,
+          retrieved_source_content: itemSourceContent,
           retrieved_at: retrievedAt,
           http_status: 200,
           published_at: pl.last_updated || retrievedAt,
@@ -2196,6 +2324,15 @@ export class ResearchEngine {
       if (repo.full_name && repo.html_url) {
         const desc = normalizeTextForVerification(repo.description || repo.full_name);
         const excerpt = desc.length >= 15 ? desc : `GitHub repository ${repo.full_name}`;
+        const itemSourceContent = JSON.stringify({
+          id: repo.id || repo.full_name,
+          full_name: repo.full_name,
+          html_url: repo.html_url,
+          description: repo.description || repo.full_name,
+          stargazers_count: repo.stargazers_count || 0,
+          open_issues_count: repo.open_issues_count || 0,
+          updated_at: repo.updated_at || null
+        });
         collectedRawFindings.push({
           claim_type: 'competitor',
           statement: `Open-source GitHub repository "${repo.full_name}" (${repo.stargazers_count || 0} stars, ${repo.open_issues_count || 0} open issues; indicates technical alternative, not commercial willingness to pay).`,
@@ -2205,7 +2342,7 @@ export class ResearchEngine {
           final_source_url: repo.html_url,
           source_name: 'GitHub Public Repositories API',
           supporting_excerpt: excerpt,
-          retrieved_source_content: rawText,
+          retrieved_source_content: itemSourceContent,
           retrieved_at: retrievedAt,
           http_status: 200,
           published_at: repo.updated_at || retrievedAt,

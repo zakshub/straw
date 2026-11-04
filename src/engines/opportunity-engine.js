@@ -3,7 +3,8 @@ import { scoreOpportunity } from './scoring-engine.js';
 import {
   verifyAndClassifyEvidence,
   computeEvidenceFingerprint,
-  analyzeOpportunityEvidenceQuality
+  analyzeOpportunityEvidenceQuality,
+  classifyCommercialEvidenceCategory
 } from './research-engine.js';
 
 export const OPPORTUNITY_CATEGORIES = [
@@ -56,9 +57,14 @@ export class OpportunityEngine {
   }
 
   hydrateOpportunity(row) {
-    const evidence = this.db
+    const rawEvidence = this.db
       .prepare('SELECT * FROM market_evidence WHERE opportunity_id = ? ORDER BY observed_at DESC')
       .all(row.id);
+
+    const evidence = rawEvidence.map((ev) => ({
+      ...ev,
+      evidence_category: ev.evidence_category || classifyCommercialEvidenceCategory(ev)
+    }));
 
     const competitors = this.db
       .prepare('SELECT * FROM opportunity_competitors WHERE opportunity_id = ? ORDER BY created_at ASC')

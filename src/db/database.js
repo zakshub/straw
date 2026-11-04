@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -346,4 +347,48 @@ export function runMigrations(db) {
 
   ensureColumn(db, 'research_runs', 'authorization_ref', 'TEXT');
   ensureColumn(db, 'research_runs', 'estimated_cost_usd', 'REAL NOT NULL DEFAULT 0');
+
+  // Milestone M-V1.1: Commercial evidence category & legacy batch-hash repair
+  ensureColumn(db, 'market_evidence', 'evidence_category', "TEXT NOT NULL DEFAULT 'market_demand'");
+
+  const dupHashGroups = db
+    .prepare(
+      `SELECT source_content_hash, COUNT(DISTINCT source_url) AS distinct_urls
+       FROM market_evidence
+       WHERE source_content_hash != '' AND source_url != ''
+       GROUP BY source_content_hash
+       HAVING COUNT(DISTINCT source_url) > 1`
+    )
+    .all();
+
+  if (dupHashGroups.length > 0) {
+    const selectDupRows = db.prepare(
+      `SELECT id, source_url, source_name, supporting_excerpt, published_at, verification_notes
+       FROM market_evidence
+       WHERE source_content_hash = ?`
+    );
+    const updateRowHash = db.prepare(
+      `UPDATE market_evidence
+       SET source_content_hash = ?, verification_notes = ?
+       WHERE id = ?`
+    );
+
+    for (const grp of dupHashGroups) {
+      const rows = selectDupRows.all(grp.source_content_hash);
+      for (const r of rows) {
+        const canonicalItemPayload = JSON.stringify({
+          source_url: r.source_url,
+          source_name: r.source_name,
+          description: r.supporting_excerpt,
+          published_at: r.published_at
+        });
+        const itemHash = crypto.createHash('sha256').update(canonicalItemPayload, 'utf8').digest('hex');
+        const updatedNotes = String(r.verification_notes || '').replace(
+          /sha256:\s*[0-9a-f]{12}\.\.\./i,
+          `sha256: ${itemHash.slice(0, 12)}...`
+        );
+        updateRowHash.run(itemHash, updatedNotes, r.id);
+      }
+    }
+  }
 }

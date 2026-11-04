@@ -13,6 +13,9 @@ import {
   computeContentHash,
   computeEvidenceFingerprint,
   isValidSha256Hex,
+  normalizeTextForVerification,
+  classifyCommercialEvidenceCategory,
+  analyzeOpportunityEvidenceQuality,
   MAX_SOURCE_RESPONSE_BYTES
 } from '../src/engines/research-engine.js';
 
@@ -1313,4 +1316,208 @@ test('7. Phase 7.2 — SSRF Prevention, IPv6/Obfuscated IPs, Redirect Attacks, D
   });
   assert.equal(dedupFp.length, 24);
   assert.notEqual(dedupFp, sampleDigest);
+});
+
+test('8. Milestone M-V1.1 — Evidence Integrity: Per-item SHA-256 hash attribution, trailing-slash redirects, JSON-LD extraction & 4-category evidence classification', async () => {
+  const ctx = createStrawContext({ dbPath: ':memory:' });
+
+  // 1. Per-item SHA-256 hash attribution on multi-item GitHub & WordPress search responses
+  ctx.researchEngine.fetchFn = async (url) => {
+    if (url.includes('api.github.com/search/repositories')) {
+      return {
+        status: 200,
+        ok: true,
+        url,
+        text: async () =>
+          JSON.stringify({
+            items: [
+              {
+                id: 101,
+                full_name: 'incluud/color-contrast-checker',
+                html_url: 'https://github.com/incluud/color-contrast-checker',
+                description:
+                  'Validate WCAG 2.2 AA/AAA contrast ratios, generate accessible OKLCH color palettes, and export tokens.',
+                stargazers_count: 27,
+                open_issues_count: 2,
+                updated_at: '2026-10-15T00:00:00Z'
+              },
+              {
+                id: 202,
+                full_name: 'Kl-webmedia/wunderui-contrast',
+                html_url: 'https://github.com/Kl-webmedia/wunderui-contrast',
+                description: 'Zero-dependency WCAG 2.1 and APCA color contrast engine for design tokens.',
+                stargazers_count: 1,
+                open_issues_count: 0,
+                updated_at: '2026-10-14T00:00:00Z'
+              }
+            ]
+          })
+      };
+    }
+    return {
+      status: 200,
+      ok: true,
+      url,
+      text: async () =>
+        JSON.stringify({
+          plugins: [
+            {
+              name: 'OneClick Chat to Order',
+              slug: 'oneclick-whatsapp-order',
+              version: '1.0.8',
+              active_installs: 30000,
+              rating: 96,
+              num_ratings: 112,
+              last_updated: '2026-10-10',
+              short_description: 'Make it easy for your customers to order via WhatsApp chat button.'
+            },
+            {
+              name: 'TrackKaro Courier Booking',
+              slug: 'dango-trackkar',
+              version: '1.0.1',
+              active_installs: 20,
+              rating: 0,
+              num_ratings: 0,
+              last_updated: '2026-10-09',
+              short_description: 'Book shipments with PostEx, TCS, and Leopards Courier in Pakistan.'
+            }
+          ]
+        })
+    };
+  };
+
+  const ghBatchRun = await ctx.researchEngine.executeDiscoveryRun({
+    query_topic: 'design tokens wcag contrast',
+    opportunity_id: 'opp-a11y-design-kit',
+    source_ids: ['src-github-public'],
+    fetch_live_public: true
+  });
+  assert.equal(ghBatchRun.created_findings.length, 2);
+  const [ghEv1, ghEv2] = ghBatchRun.created_findings;
+  assert.ok(isValidSha256Hex(ghEv1.source_content_hash));
+  assert.ok(isValidSha256Hex(ghEv2.source_content_hash));
+  assert.notEqual(
+    ghEv1.source_content_hash,
+    ghEv2.source_content_hash,
+    'Two different GitHub repositories from a single search API call MUST have distinct SHA-256 content hashes'
+  );
+
+  const wpBatchRun = await ctx.researchEngine.executeDiscoveryRun({
+    query_topic: 'woocommerce whatsapp cod',
+    opportunity_id: 'opp-wp-ux-audit-blocks',
+    source_ids: ['src-wp-plugin-api'],
+    fetch_live_public: true
+  });
+  assert.equal(wpBatchRun.created_findings.length, 2);
+  const [wpEv1, wpEv2] = wpBatchRun.created_findings;
+  assert.ok(isValidSha256Hex(wpEv1.source_content_hash));
+  assert.ok(isValidSha256Hex(wpEv2.source_content_hash));
+  assert.notEqual(
+    wpEv1.source_content_hash,
+    wpEv2.source_content_hash,
+    'Two different WordPress plugins from a single search API call MUST have distinct SHA-256 content hashes'
+  );
+
+  // 2. Trailing-slash preservation & 301 redirect resolution (no redirect loop on /path -> /path/)
+  const slashCheck = extractValidPublicUrl('https://www.w3.org/TR/2024/REC-WCAG22-20241212/');
+  assert.equal(slashCheck.valid, true);
+  assert.equal(
+    slashCheck.normalizedUrl,
+    'https://www.w3.org/TR/2024/REC-WCAG22-20241212/',
+    'Trailing slash on non-root path must be preserved'
+  );
+
+  let requestedUrls = [];
+  const redirectSlashRes = await retrieveAndVerifySourceContent(
+    {
+      source_url: 'https://wordpress.org/plugins/oneclick-whatsapp-order',
+      supporting_excerpt: 'Make it easy for your customers to order via WhatsApp chat button.',
+      evidence_tier: 'verified_evidence'
+    },
+    {
+      dnsLookup: async () => [{ address: '198.143.164.252', family: 4 }],
+      fetchImpl: async (url) => {
+        requestedUrls.push(url);
+        if (!url.endsWith('/')) {
+          return {
+            status: 301,
+            ok: false,
+            headers: new Map([['location', 'https://wordpress.org/plugins/oneclick-whatsapp-order/']]),
+            text: async () => ''
+          };
+        }
+        return {
+          status: 200,
+          ok: true,
+          headers: new Map(),
+          text: async () =>
+            '<html><head><script type="application/ld+json">{"@context":"https://schema.org","description":"Make it easy for your customers to order via WhatsApp chat button."}</script><script>window.evil=1;</script></head><body><h1>OneClick Chat</h1></body></html>'
+        };
+      }
+    }
+  );
+  assert.deepEqual(requestedUrls, [
+    'https://wordpress.org/plugins/oneclick-whatsapp-order',
+    'https://wordpress.org/plugins/oneclick-whatsapp-order/'
+  ]);
+  assert.equal(redirectSlashRes.verification_status, 'verified');
+  assert.equal(redirectSlashRes.excerpt_verified_in_source, 1, 'JSON-LD description inside <script type="application/ld+json"> must be extracted and verified');
+
+  // 3. Confirm executable <script> is still stripped while JSON-LD is preserved
+  const normJsonLd = normalizeTextForVerification(
+    '<script>const secretToken = "DO_NOT_KEEP";</script><script type="application/ld+json">{"description":"Keep this schema description"}</script>'
+  );
+  assert.ok(!normJsonLd.includes('DO_NOT_KEEP'));
+  assert.ok(normJsonLd.includes('Keep this schema description'));
+
+  // 4. Verify 4 distinct commercial evidence categories (Problem Existence, Market Demand, Competitor Activity, Willingness to Pay)
+  const sampleEvs = [
+    verifyAndClassifyEvidence({
+      evidence_tier: 'verified_evidence',
+      claim_type: 'technical',
+      statement: 'W3C WCAG 2.2 normative specification requires 2.5.3 Label in Name compliance.',
+      source_url: 'https://www.w3.org/TR/WCAG22/',
+      supporting_excerpt: 'Success Criterion 2.5.3 Label in Name is normative for all user interface components.',
+      retrieved_source_content: 'W3C WCAG 2.2: Success Criterion 2.5.3 Label in Name is normative for all user interface components.',
+      http_status: 200
+    }),
+    verifyAndClassifyEvidence({
+      evidence_tier: 'verified_evidence',
+      claim_type: 'demand',
+      statement: 'EU web agencies actively searching for EAA compliance handoff workflows.',
+      source_url: 'https://news.ycombinator.com/item?id=49922924',
+      supporting_excerpt: 'Our agency clients are demanding EAA compliance checklists before signing off on redesigns.',
+      retrieved_source_content: 'HN 49922924: Our agency clients are demanding EAA compliance checklists before signing off on redesigns.',
+      http_status: 200
+    }),
+    verifyAndClassifyEvidence({
+      evidence_tier: 'verified_evidence',
+      claim_type: 'competitor',
+      statement: 'Open-source GitHub repository incluud/color-contrast-checker (27 stars; indicates technical alternative, not commercial willingness to pay).',
+      source_url: 'https://github.com/incluud/color-contrast-checker',
+      supporting_excerpt: 'Validate WCAG 2.2 AA/AAA contrast ratios and export tokens.',
+      retrieved_source_content: '{"description":"Validate WCAG 2.2 AA/AAA contrast ratios and export tokens."}',
+      http_status: 200
+    }),
+    verifyAndClassifyEvidence({
+      evidence_tier: 'verified_evidence',
+      claim_type: 'pricing',
+      statement: 'Verified buyer willingness to pay: 3 agencies paid $199 for an early-access commercial license pilot.',
+      source_url: 'https://www.getstark.co/pricing/',
+      supporting_excerpt: 'Team commercial license plan is $199 per year billed annually for agency teams.',
+      retrieved_source_content: 'Pricing page: Team commercial license plan is $199 per year billed annually for agency teams.',
+      http_status: 200
+    })
+  ];
+
+  assert.equal(sampleEvs[0].evidence_category, 'problem_existence');
+  assert.equal(sampleEvs[1].evidence_category, 'market_demand');
+  assert.equal(sampleEvs[2].evidence_category, 'competitor_activity');
+  assert.equal(sampleEvs[3].evidence_category, 'willingness_to_pay');
+
+  const eqSummary = analyzeOpportunityEvidenceQuality(sampleEvs);
+  assert.equal(eqSummary.verified_problem_count, 1);
+  assert.equal(eqSummary.verified_demand_count, 1);
+  assert.equal(eqSummary.verified_competitor_count, 1);
+  assert.equal(eqSummary.verified_willingness_to_pay_count, 1);
 });
