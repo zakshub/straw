@@ -518,8 +518,9 @@ export class OpportunityEngine {
           source_content_hash, excerpt_verified_in_source, verification_method,
           confidence_score, source_reliability_score,
           verification_status, verification_notes,
-          research_methodology, stance, is_stale, content_fingerprint, research_run_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          research_methodology, stance, is_stale, content_fingerprint, research_run_id,
+          evidence_category
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         id,
@@ -549,7 +550,8 @@ export class OpportunityEngine {
         classified.stance,
         classified.is_stale,
         fingerprint,
-        rawInput.research_run_id || null
+        rawInput.research_run_id || null,
+        classified.evidence_category
       );
 
     if (!skipRescore) {

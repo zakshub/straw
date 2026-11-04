@@ -212,6 +212,52 @@ test('2. Milestone 2 — Actual Evidence Verification: URL format vs content ver
   assert.equal(wtpBlockedEv.verification_status, 'downgraded_unverified');
   assert.ok(wtpBlockedEv.verification_notes.includes('do not prove willingness to pay'));
 
+  // Case F2 (Commercial Evidence Integrity): Customer interview responses, expressions of interest & hypothetical reactions
+  // cannot automatically become verified willingness-to-pay evidence.
+  const interviewWtpCheck = detectUnsupportedWillingnessToPayClaim({
+    claim_type: 'pricing',
+    statement: 'Customer interview response: 5 design leads said they would definitely pay $49 for this tool.',
+    supporting_excerpt: 'Interview notes: Lead stated they would pay $49 if this token checker existed.'
+  });
+  assert.equal(interviewWtpCheck.violates_wtp_rule, true, 'Interview reactions must violate WTP rule for verified evidence');
+  assert.ok(interviewWtpCheck.reason.includes('Interview responses, expressions of interest, and hypothetical pricing reactions'));
+
+  const interviewEv = ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'pricing',
+    statement: 'Customer interview response: 5 design leads said they would definitely pay $49 for this tool.',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://news.ycombinator.com/item?id=99999999',
+    supporting_excerpt: 'Lead stated they would pay $49 if this token checker existed.',
+    retrieved_source_content: 'Call Transcript: Lead stated they would pay $49 if this token checker existed.',
+    http_status: 200,
+    retrieved_at: '2026-10-20T00:00:00Z'
+  });
+  assert.equal(interviewEv.evidence_tier, 'practitioner_observation', 'Interview response must be downgraded from verified_evidence');
+  assert.equal(interviewEv.verification_status, 'downgraded_unverified');
+  assert.equal(interviewEv.evidence_category, 'market_demand', 'Interview pricing reaction must classify as market_demand, NOT willingness_to_pay');
+
+  // Concrete executed transaction qualifies for willingness_to_pay
+  const paidPilotWtpCheck = detectUnsupportedWillingnessToPayClaim({
+    claim_type: 'pricing',
+    statement: 'Signed paid pilot agreement with agency partner paying $500 pilot fee.',
+    supporting_excerpt: 'Paid pilot deposit paid $500 on Stripe invoice inv_agency_001.'
+  });
+  assert.equal(paidPilotWtpCheck.violates_wtp_rule, false, 'Executed paid pilot transaction must not violate WTP rule');
+
+  const executedWtpEv = ctx.opportunityEngine.addEvidence(opportunity.id, {
+    claim_type: 'pricing',
+    statement: 'Signed paid pilot agreement with agency partner paying $500 pilot fee.',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://billing.stripe.com/p/inv_agency_001',
+    supporting_excerpt: 'Paid pilot deposit paid $500 on Stripe invoice inv_agency_001.',
+    retrieved_source_content: 'Stripe Receipt: Paid pilot deposit paid $500 on Stripe invoice inv_agency_001. Status: Succeeded.',
+    http_status: 200,
+    retrieved_at: '2026-10-20T00:00:00Z'
+  });
+  assert.equal(executedWtpEv.evidence_tier, 'verified_evidence');
+  assert.equal(executedWtpEv.verification_status, 'verified');
+  assert.equal(executedWtpEv.evidence_category, 'willingness_to_pay', 'Executed paid pilot must classify as willingness_to_pay');
+
   // Case G: Valid URL + retrieved HTTP 200 source content where supporting_excerpt IS genuinely present in the retrieved source
   const realVerified = ctx.opportunityEngine.addEvidence(opportunity.id, {
     claim_type: 'demand',

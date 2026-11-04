@@ -509,6 +509,25 @@ export function detectUnsupportedWillingnessToPayClaim({ statement = '', claim_t
     };
   }
 
+  // Task 4 Hardening: Interview responses, expressions of interest, and hypothetical pricing reactions
+  // cannot automatically become verified willingness-to-pay evidence. Only concrete, executed commitments qualify.
+  const isHypotheticalOrInterviewOnly =
+    /(?:interview|interviewee|interview\s+response|survey\s+response|call\s+notes?|verbal\s+quote|expressed\s+interest|hypothetical|would\s+pay|would\s+buy|willing\s+to\s+consider|said\s+they\s+would|might\s+buy|might\s+pay|stated\s+interest|pricing\s+reaction|price\s+reaction|verbal\s+interest)\b/i.test(
+      `${sanitizedStatement} ${excerptLower}`
+    );
+  const hasExecutedCommercialTransaction =
+    /(?:paid\s+pilot\s+(?:deposit|contract|invoice|agreement)|invoice\s+#?\d+|stripe\s+invoice|deposit\s+paid|pre-?order\s+deposit|receipt|billed\s+and\s+paid|commercial\s+license\s+purchased|active\s+paid\s+contract)\b/i.test(
+      `${sanitizedStatement} ${excerptLower}`
+    );
+
+  if (claimsWillingnessToPay && isHypotheticalOrInterviewOnly && !hasExecutedCommercialTransaction) {
+    return {
+      violates_wtp_rule: true,
+      reason:
+        'Interview responses, expressions of interest, and hypothetical pricing reactions cannot qualify as verified willingness to pay. Only concrete and independently verifiable commercial commitments (paid pilot deposits, executed invoices, or transaction receipts) qualify.'
+    };
+  }
+
   if (claim_type === 'demand' && isOnlyPopularityOrInstallCount && !/pain|problem|need|struggle|fail|audit|compliance|mandate|require/i.test(excerptLower)) {
     return {
       violates_wtp_rule: true,
@@ -987,9 +1006,19 @@ export function classifyCommercialEvidenceCategory(ev = {}) {
       combined
     );
 
+  const isHypotheticalOrInterviewReaction =
+    /(?:interview|interviewee|interview\s+response|survey\s+response|call\s+notes?|verbal\s+quote|expressed\s+interest|hypothetical|would\s+pay|would\s+buy|willing\s+to\s+consider|said\s+they\s+would|might\s+buy|might\s+pay|stated\s+interest|pricing\s+reaction|price\s+reaction|verbal\s+interest)\b/i.test(
+      combined
+    );
+  const hasExecutedCommercialTransaction =
+    /(?:paid\s+pilot\s+(?:deposit|contract|invoice|agreement)|invoice\s+#?\d+|stripe\s+invoice|deposit\s+paid|pre-?order\s+deposit|receipt|billed\s+and\s+paid|commercial\s+license\s+purchased|active\s+paid\s+contract)\b/i.test(
+      combined
+    );
+
   const hasExplicitCustomerPaymentOrCommercialPrice =
     !hasExplicitDisclaimers &&
     !wtpCheck.violates_wtp_rule &&
+    (!isHypotheticalOrInterviewReaction || hasExecutedCommercialTransaction) &&
     /\b(paid\s+\$\d+|paying\s+\$\d+|purchased|paid\s+pilot|pre-?order\s+deposit|billed\s+annually|per\s+month|per\s+seat|commercial\s+license|pro\s+plan\s+is\s+\$\d+|launch\s+plan\s+is\s+\$\d+|annual\s+license\s+\$\d+)\b/i.test(
       combined
     );
