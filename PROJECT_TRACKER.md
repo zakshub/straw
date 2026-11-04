@@ -95,3 +95,18 @@
      - Streamlined opportunity creation to 4 core fields visible by default with optional advanced assumptions collapsed inside `<details class="advanced-assumptions-accordion">`.
      - Upgraded the Selected Opportunity MVP Planning workflow (`ExecutionEngine.promoteOpportunityToProduct`, `ExecutionEngine.updateMvpPlan`, `PATCH /api/products/:id`) to include `target_audience`, `mvp_must_have_features`, `mvp_excluded_scope`, `pricing_hypothesis`, and `buyer_validation_criteria` (`BUILD IF / PIVOT IF / ABANDON IF`).
      - Added automated Test Suites #8, #9, and #10 in `tests/straw.test.js` (`10/10` suites passing).
+
+## Milestone 10: STRAW V1.0 Operational Smoke Test
+- **Status:** Completed & Verified (`100%`)
+- **Deliverables:** [`STRAW_V1_OPERATIONAL_SMOKE_TEST.md`](./STRAW_V1_OPERATIONAL_SMOKE_TEST.md), `scripts/smoke-test-v1.js`
+- **Completed Verifications:**
+  1. [x] **Git Provenance Audit:** Verified branch `main`, tracking `origin/main`, commit chain `32a36cf`, `62d1104`, `d7732cb`, `bf0df32` intact.
+  2. [x] **Live Server Daemon:** Launched `npm start` on `http://127.0.0.1:4310`, confirmed `GET /api/health` 200 with local AI mode.
+  3. [x] **Consolidated 4 Views:** Inspected `#tab-research`, `#tab-opportunities`, `#tab-execution`, `#tab-approvals`; confirmed premature V3 tabs hidden.
+  4. [x] **Live Discovery Workflow:** Executed live HN Algolia search, retrieved 4 real practitioner comments with 64-char SHA-256 hashes and de-duplication.
+  5. [x] **Evidence & Dual Scores:** Verified 4-category classification and independent Commercial (58.0) vs. Technical (91.5) sub-scores with score disclaimer.
+  6. [x] **Simplified Intake:** Created opportunity using 4 core fields, verified dynamic heuristic priority calculation.
+  7. [x] **Promote to MVP:** Promoted opportunity to MVP plan with `<= 10`-day feature scope, excluded non-goals, and buyer validation gates (`BUILD IF / PIVOT IF / ABANDON IF`).
+  8. [x] **Edit & Save MVP Plan:** Updated plan fields via `PATCH /api/products/:id` with SQLite persistence.
+  9. [x] **Dossier Export:** Exported Markdown dossier with disclaimer, dual sub-scores, evidence table, and Section 7 MVP plan.
+  10. [x] **Financial Governance:** Inspected pending approvals ledger; verified unauthorized paid API calls are blocked server-side with `MISSING_APPROVAL`.

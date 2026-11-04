@@ -36,6 +36,7 @@
 | **Phase 8 Real Market Discovery Experiment & Dossier Report** | Phase 8 | **Completed** | `scripts/run-phase8-experiment.js`, `MARKET_DISCOVERY_REPORT_PHASE8.md` | 11 opportunities evaluated (9 qualified, 1 held, 1 rejected) |
 | **Phase 8.1 Independent Evidence Audit & Commercial Validation** | Phase 8.1 | **Completed** | `PHASE8_1_INDEPENDENT_EVIDENCE_AUDIT.md` | Forensic SHA-256 & source audit, score reassessment, real buyer investigation (`CONDITIONAL HOLD` on build pending 10 buyer interviews) |
 | **STRAW V1.0 MVP Release (`M-V1.1`, `M-V1.2`, `M-V1.3`)** | V1.0 Release | **Completed & Verified (`100%`)** | `src/engines/`, `src/public/`, `tests/straw.test.js` | All 10 automated acceptance suites pass (`10/10`) |
+| **STRAW V1.0 Operational Smoke Test** | Post-V1.0 Smoke Test | **Completed & Verified (`100%`)** | `scripts/smoke-test-v1.js`, `STRAW_V1_OPERATIONAL_SMOKE_TEST.md` | Verified all 9 end-to-end workflows on live server (`http://127.0.0.1:4310`) with zero defects |
 
 ---
 
@@ -51,3 +52,23 @@
 | **W3C & Regulatory Normative Specifications** | `public_url_inspector` | `implemented` | `none` | Free | Full public HTML specification text, document title, HTTP status, excerpt verification | `demand`, `technical`, `risk` | 30 req/min | Requires `target_url` pointing to public specification URI |
 | **Public Ecosystem Marketplaces (Chrome Web Store / Figma / Product Hunt)** | `marketplace_directory_inspector` | `unsupported` | `oauth_or_browser_session` | Free | None (automated search disabled; individual public URLs can use `public_url_inspector`) | `competitor`, `customer_reviews` | 0 req/min | Product Hunt v2 requires OAuth token; Chrome Web Store & Figma Community block automated search scraping |
 | **Commercial Search Trend & Keyword Volume API (DataForSEO / Brave Paid)** | `paid_search_provider` | `unsupported` | `paid_api_key_and_owner_approval` | Paid | None until commercial API credentials and server-side approved `approval_request_id` are provided | `demand` | 30 req/min | Hard-locked by `ApprovalEngine.verifyFinancialAuthorization()` |
+
+---
+
+## 4. STRAW V1.0 Operational Smoke Test Status
+
+- **Status:** **Completed & Verified (`100%`)**
+- **Artifact:** [`STRAW_V1_OPERATIONAL_SMOKE_TEST.md`](./STRAW_V1_OPERATIONAL_SMOKE_TEST.md)
+- **Live Test Runner:** `scripts/smoke-test-v1.js` against daemon at `http://127.0.0.1:4310`
+- **Verified Workflow Checkpoints:**
+  1. [x] Git branch `main`, tracking `origin/main`, commit chain (`32a36cf`, `62d1104`, `d7732cb`, `bf0df32`) intact.
+  2. [x] Application daemon started cleanly (`node src/server.js`), health probe returned 200 with local AI mode.
+  3. [x] All 4 consolidated workspace views verified in DOM (`#tab-research`, `#tab-opportunities`, `#tab-execution`, `#tab-approvals`); premature V3 tabs (`data-tab="growth"`) confirmed hidden.
+  4. [x] Live free public discovery run executed on `src-hn-algolia` querying `"accessible color contrast tool"` with 64-char SHA-256 hashes generated and de-duplication verified.
+  5. [x] Opportunity evidence classifications (4-way) and dual sub-scores (Commercial 58.0, Technical 91.5) verified distinct on `opp-oklch-contrast-inspector`.
+  6. [x] Simplified opportunity intake form verified (4 core fields) creating `opp-63b27d9b`.
+  7. [x] Promotion to MVP plan verified with `<= 10`-day must-have features, excluded scope, and buyer validation gates (`BUILD IF / PIVOT IF / ABANDON IF`).
+  8. [x] MVP plan inline editing verified (`PATCH /api/products/:id`) with SQLite persistence.
+  9. [x] Full Markdown dossier export verified with score disclaimer, dual scores, 4-way evidence matrix, and Section 7 MVP blueprint.
+  10. [x] Financial governance and human approval lock verified: pending ledger intact, unauthorized paid API run blocked with `MISSING_APPROVAL`.
+
