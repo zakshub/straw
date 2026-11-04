@@ -18,7 +18,7 @@
 
 ---
 
-## 2. Current Implementation Status (Phases 0–8 Complete & Verified)
+## 2. Current Implementation Status (Phases 0–8.1 Complete & Verified)
 
 | Module / Subsystem | Phase | Status | Implementation File | Verification |
 | :--- | :--- | :--- | :--- | :--- |
@@ -34,6 +34,8 @@
 | **Replaceable AI Orchestration Layer** | Phase 1–7 | **Operational** | `src/engines/ai-orchestrator.js` | Verified via `npm test` |
 | **Sentinel Light/Dark Business Workspace UI & Hardened Server** | Phase 1–7.2 | **Operational** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |
 | **Phase 8 Real Market Discovery Experiment & Dossier Report** | Phase 8 | **Completed** | `scripts/run-phase8-experiment.js`, `MARKET_DISCOVERY_REPORT_PHASE8.md` | 11 opportunities evaluated (9 qualified, 1 held, 1 rejected) |
+| **Phase 8.1 Independent Evidence Audit & Commercial Validation** | Phase 8.1 | **Completed** | `PHASE8_1_INDEPENDENT_EVIDENCE_AUDIT.md` | Forensic SHA-256 & source audit, score reassessment, real buyer investigation (`CONDITIONAL HOLD` on build pending 10 buyer interviews) |
+| **STRAW V1.0 MVP Consolidation & Versioned Release Blueprint** | Strategy / V1.0 Plan | **82.0% Verified (`11.5h` Remaining)** | `STRAW_MVP_PRODUCT_BLUEPRINT.md`, `STRAW_VERSION_ROADMAP.md`, `STRAW_V1_ACCEPTANCE_CRITERIA.md`, `STRAW_CURRENT_CAPABILITY_AUDIT.md` | Defines V1.0 (`DISCOVER -> PLAN`), defers V1.5/V2.0/V3.0 scope, and maps 3 final milestones (`M-V1.1` to `M-V1.3`) |
 
 ---
 

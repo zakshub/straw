@@ -61,3 +61,19 @@
   2. [x] **M8.2 — Evidence Verification & SHA-256 Auditing (1.5h, 100%):** Verified 16 HTTP 200 source records with 64-char SHA-256 `source_content_hash` digests and enforced willingness-to-pay guardrails.
   3. [x] **M8.3 — 11-Dimension Scoring & Epistemic Filtering (1.5h, 100%):** Scored 11 opportunities across all 9 categories; shortlisted the 9 qualifying opportunities (`78.3`–`88.8/100`), held `ClinicFlow PK` (`70.8/100`, `NEEDS_EVIDENCE`), and rejected `AutoBlog AI` (`40.5/100`, `REJECT_WEAK_IDEA`).
   4. [x] **M8.4 — Dossier Synthesis & Validation Plan (1.0h, 100%):** Generated `MARKET_DISCOVERY_REPORT_PHASE8.md` with 12-question dossiers, 12-criterion evaluation tables, competitor comparisons, top 3 recommendations, and a 14-day zero-spend validation plan.
+
+## Milestone 7: Independent Evidence Audit & Commercial Validation (Phase 8.1)
+- **Status:** Completed & Verified (`100%`)
+- **Concrete Tasks:**
+  1. [x] **M8.1.1 — Adversarial Audit of Top 3 Opportunities:** Separated verified problem existence, market demand, competitor activity, and willingness to pay (`$0` proven across all candidates) from unverified projections for `Sentinel A11y`, `ContrastPair OKLCH`, and `PakCOD Shield`.
+  2. [x] **M8.1.2 — Source Verification & Identical SHA-256 Hash Forensics:** Audited all supporting sources across 7 criteria; diagnosed the batch Search API JSON payload hashing defect in `collectFromGitHubPublicApi` and `collectFromWordPressPluginApi`; verified true individual page SHA-256 digests (`5a2d0d3d...` and `ce9aa4cb...`); uncovered the trailing-slash redirect loop in `extractValidPublicUrl()`.
+  3. [x] **M8.1.3 — Scoring Engine Critique & Revised Commercial Scores:** Identified 4 score-inflation mechanisms in `src/engines/scoring-engine.js` and recalculated audited commercial scores (`Sentinel A11y`: `88.8` -> `71.2`; `AuditReady EAA`: `83.9` -> `69.5`; `ConversionFlow WP`: `78.3` -> `66.8`; `PakCOD Shield`: `84.1` -> `63.4`; `ContrastPair OKLCH`: `86.2` -> `58.5`).
+  4. [x] **M8.1.4 — Real Buyer Investigation & Commercial Validation Protocol:** Investigated real buyer behavior across HN, WordPress.org, and GitHub; decoupled `Sentinel A11y` and `ContrastPair OKLCH`; replaced vanity validation metrics with a 4-step owner-gated buyer conversation & paid pilot protocol in `PHASE8_1_INDEPENDENT_EVIDENCE_AUDIT.md`.
+
+## Milestone 8: STRAW V1.0 MVP Definition & Versioned Release Blueprint
+- **Status:** Blueprint Completed (`100%` of Planning Task); V1.0 Code Readiness at **`82.0%`** (`11.5h` Remaining Across `M-V1.1`–`M-V1.3`)
+- **Deliverables Created:**
+  1. [x] [`STRAW_CURRENT_CAPABILITY_AUDIT.md`](./STRAW_CURRENT_CAPABILITY_AUDIT.md) — Classified every feature across the repository (`A` through `E`), identified duplicated functionality, and triaged Phase 8.1 technical defects.
+  2. [x] [`STRAW_MVP_PRODUCT_BLUEPRINT.md`](./STRAW_MVP_PRODUCT_BLUEPRINT.md) — Defined the focused V1.0 workflow (`DISCOVER -> RESEARCH -> EVALUATE -> PRIORITIZE -> SELECT -> PLAN`), separated V1.0 vs. deferred features, streamlined the 4-view non-technical owner journey, and mapped the `11.5h` completion plan (`M-V1.1`, `M-V1.2`, `M-V1.3`).
+  3. [x] [`STRAW_VERSION_ROADMAP.md`](./STRAW_VERSION_ROADMAP.md) — Defined self-contained releases for `V1.0` (Opportunity Intelligence), `V1.5` (Commercial Validation), `V2.0` (Product Execution), and `V3.0` (Growth & Business Automation).
+  4. [x] [`STRAW_V1_ACCEPTANCE_CRITERIA.md`](./STRAW_V1_ACCEPTANCE_CRITERIA.md) — Established 10 objective acceptance criteria for calling STRAW V1.0 complete without confusing software functionality with commercial buyer validation.
