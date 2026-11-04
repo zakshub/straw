@@ -1,10 +1,22 @@
+import {
+  t,
+  getSupportedLanguage,
+  renderExplainTerm,
+  renderGettingStartedBanner,
+  renderHelpCenterContent
+} from './i18n.js';
+
 const state = {
   dashboard: null,
   selectedOpportunityId: null,
   selectedProductId: null,
   filterStatus: '',
   filterCategory: '',
-  theme: localStorage.getItem('straw_theme') || 'light'
+  theme: localStorage.getItem('straw_theme') || 'light',
+  lang: getSupportedLanguage(localStorage.getItem('straw_lang') || 'en'),
+  gsCollapsed: localStorage.getItem('straw_gs_collapsed') === 'true',
+  helpSection: 'getting-started',
+  helpSearch: ''
 };
 
 function escapeHtml(value) {
@@ -26,48 +38,48 @@ function showFeedback(message) {
 }
 
 function renderRecommendationBadge(rec) {
+  const label = t(`rec_${rec}`, {}, state.lang);
   if (rec === 'APPROVE_FOR_VALIDATION') {
-    return `<span class="badge badge-verified">[APPROVE FOR VALIDATION]</span>`;
+    return `<span class="badge badge-verified">[${escapeHtml(label)}]</span>`;
   }
   if (rec === 'NEEDS_EVIDENCE') {
-    return `<span class="badge badge-warn">[NEEDS VERIFIED EVIDENCE]</span>`;
+    return `<span class="badge badge-warn">[${escapeHtml(label)}]</span>`;
   }
-  if (rec === 'HOLD_CONFLICTING_EVIDENCE') {
-    return `<span class="badge badge-danger">[HOLD: CONFLICTING EVIDENCE]</span>`;
+  if (rec === 'HOLD_CONFLICTING_EVIDENCE' || rec === 'REJECT_WEAK_IDEA') {
+    return `<span class="badge badge-danger">[${escapeHtml(label)}]</span>`;
   }
-  if (rec === 'REJECT_WEAK_IDEA') {
-    return `<span class="badge badge-danger">[REJECT WEAK IDEA]</span>`;
-  }
-  return `<span class="badge badge-info">[${escapeHtml(rec)}]</span>`;
+  return `<span class="badge badge-info">[${escapeHtml(label || rec)}]</span>`;
 }
 
 function renderEvidenceTierBadge(tier) {
+  const label = t(`tier_${tier}`, {}, state.lang);
   if (tier === 'verified_evidence') {
-    return `<span class="badge badge-verified">[VERIFIED EVIDENCE]</span>`;
+    return `<span class="badge badge-verified">[${escapeHtml(label)}]</span>`;
   }
   if (tier === 'practitioner_observation') {
-    return `<span class="badge badge-info">[PRACTITIONER OBSERVATION]</span>`;
+    return `<span class="badge badge-info">[${escapeHtml(label)}]</span>`;
   }
   if (tier === 'estimate') {
-    return `<span class="badge badge-warn">[ESTIMATE]</span>`;
+    return `<span class="badge badge-warn">[${escapeHtml(label)}]</span>`;
   }
-  return `<span class="badge badge-danger">[ASSUMPTION]</span>`;
+  return `<span class="badge badge-danger">[${escapeHtml(label)}]</span>`;
 }
 
 function renderEvidenceCategoryBadge(category) {
+  const label = t(`cat_${category}`, {}, state.lang);
   if (category === 'verified_commercial_commitment' || category === 'willingness_to_pay') {
-    return `<span class="badge badge-verified">[5. VERIFIED COMMERCIAL COMMITMENT]</span>`;
+    return `<span class="badge badge-verified">[${escapeHtml(label)}]</span>`;
   }
   if (category === 'unverified_willingness_to_pay') {
-    return `<span class="badge badge-warn">[4. UNVERIFIED BUYER WTP]</span>`;
+    return `<span class="badge badge-warn">[${escapeHtml(label)}]</span>`;
   }
   if (category === 'competitor_activity') {
-    return `<span class="badge badge-warn">[3. COMPETITOR ACTIVITY]</span>`;
+    return `<span class="badge badge-warn">[${escapeHtml(label)}]</span>`;
   }
   if (category === 'market_demand') {
-    return `<span class="badge badge-info">[2. MARKET DEMAND]</span>`;
+    return `<span class="badge badge-info">[${escapeHtml(label)}]</span>`;
   }
-  return `<span class="badge badge-info">[1. PROBLEM EXISTENCE]</span>`;
+  return `<span class="badge badge-info">[${escapeHtml(label)}]</span>`;
 }
 
 function applyTheme(theme) {
@@ -78,8 +90,103 @@ function applyTheme(theme) {
   if (btn) {
     btn.textContent =
       theme === 'light'
-        ? 'Appearance: Light Drafting (Switch to Dark)'
-        : 'Appearance: Dark Slate (Switch to Light)';
+        ? t('theme_light_to_dark', {}, state.lang)
+        : t('theme_dark_to_light', {}, state.lang);
+  }
+}
+
+function applyLanguage(lang) {
+  state.lang = getSupportedLanguage(lang);
+  localStorage.setItem('straw_lang', state.lang);
+
+  const html = document.documentElement;
+  html.setAttribute('lang', state.lang);
+  html.setAttribute('dir', state.lang === 'ur' ? 'rtl' : 'ltr');
+
+  // Update switcher button active states
+  const btnEn = document.getElementById('lang-btn-en');
+  const btnUr = document.getElementById('lang-btn-ur');
+  if (btnEn) btnEn.classList.toggle('active', state.lang === 'en');
+  if (btnUr) btnUr.classList.toggle('active', state.lang === 'ur');
+
+  // Update static UI header & navigation labels
+  const brandSub = document.getElementById('brand-subtitle-text');
+  if (brandSub) brandSub.textContent = t('brand_subtitle', {}, state.lang);
+
+  const pillAi = document.getElementById('pill-ai-mode');
+  if (pillAi) pillAi.textContent = t('pill_ai_mode', {}, state.lang);
+
+  const pillDir = document.getElementById('pill-direction');
+  if (pillDir) pillDir.textContent = t('pill_budget', {}, state.lang);
+
+  const helpNavBtn = document.getElementById('help-nav-btn');
+  if (helpNavBtn) helpNavBtn.textContent = t('help_btn_label', {}, state.lang);
+
+  const themeBtn = document.getElementById('theme-toggle-btn');
+  if (themeBtn) {
+    themeBtn.textContent =
+      state.theme === 'light'
+        ? t('theme_light_to_dark', {}, state.lang)
+        : t('theme_dark_to_light', {}, state.lang);
+  }
+
+  // Update navigation buttons
+  const tabResearch = document.getElementById('tab-btn-research');
+  if (tabResearch) tabResearch.innerHTML = t('nav_tab_research', {}, state.lang);
+
+  const tabOpps = document.getElementById('tab-btn-opportunities');
+  if (tabOpps) tabOpps.innerHTML = t('nav_tab_opportunities', {}, state.lang);
+
+  const tabExec = document.getElementById('tab-btn-execution');
+  if (tabExec) tabExec.innerHTML = t('nav_tab_execution', {}, state.lang);
+
+  const tabAppr = document.getElementById('tab-btn-approvals');
+  if (tabAppr) tabAppr.innerHTML = t('nav_tab_approvals', {}, state.lang);
+
+  const tabHelp = document.getElementById('tab-btn-help');
+  if (tabHelp) tabHelp.innerHTML = t('nav_tab_help', {}, state.lang);
+
+  // Render ExplainTerm triggers inside headers
+  const expV1 = document.getElementById('explain-v1-heading');
+  if (expV1) expV1.innerHTML = renderExplainTerm('cat_problem_existence', state.lang);
+
+  const expV1Run = document.getElementById('explain-v1-run');
+  if (expV1Run) expV1Run.innerHTML = renderExplainTerm('source_adapter', state.lang);
+
+  const expV1Src = document.getElementById('explain-v1-source');
+  if (expV1Src) expV1Src.innerHTML = renderExplainTerm('source_adapter', state.lang);
+
+  const expV1Ev = document.getElementById('explain-v1-evidence');
+  if (expV1Ev) expV1Ev.innerHTML = renderExplainTerm('evidence_verification', state.lang);
+
+  const expV2 = document.getElementById('explain-v2-heading');
+  if (expV2) expV2.innerHTML = renderExplainTerm('score_separation', state.lang);
+
+  const expV3 = document.getElementById('explain-v3-heading');
+  if (expV3) expV3.innerHTML = renderExplainTerm('mvp_scope', state.lang);
+
+  const expV4 = document.getElementById('explain-v4-heading');
+  if (expV4) expV4.innerHTML = renderExplainTerm('approval_gate', state.lang);
+
+  const expV4Gate = document.getElementById('explain-v4-gate');
+  if (expV4Gate) expV4Gate.innerHTML = renderExplainTerm('approval_gate', state.lang);
+
+  const expV4Cap = document.getElementById('explain-v4-cap');
+  if (expV4Cap) expV4Cap.innerHTML = renderExplainTerm('capability_fit', state.lang);
+
+  // Render Getting Started banner & Help Center
+  renderGettingStarted();
+  renderHelpCenter();
+
+  // Re-render data-bound panels if dashboard is loaded
+  if (state.dashboard) {
+    renderHeaderStatus(state.dashboard);
+    renderOverviewWorkspace(state.dashboard);
+    renderOpportunitiesWorkspace(state.dashboard);
+    renderResearchWorkspace(state.dashboard);
+    renderExecutionWorkspace(state.dashboard);
+    renderApprovalsWorkspace(state.dashboard);
+    renderCapabilitiesWorkspace(state.dashboard);
   }
 }
 
@@ -90,6 +197,18 @@ function switchTab(tabName) {
   document.querySelectorAll('.workspace-panel').forEach((panel) => {
     panel.classList.toggle('active', panel.id === `tab-${tabName}`);
   });
+}
+
+function renderGettingStarted() {
+  const container = document.getElementById('getting-started-container');
+  if (!container) return;
+  container.innerHTML = renderGettingStartedBanner(state.lang, state.gsCollapsed);
+}
+
+function renderHelpCenter() {
+  const container = document.getElementById('help-center-container');
+  if (!container) return;
+  container.innerHTML = renderHelpCenterContent(state.lang, state.helpSection, state.helpSearch);
 }
 
 async function fetchJson(url, options = {}) {
@@ -121,9 +240,9 @@ async function loadDashboard() {
   renderOpportunitiesWorkspace(data);
   renderResearchWorkspace(data);
   await renderExecutionWorkspace(data);
-  await renderGrowthWorkspace(data);
   renderApprovalsWorkspace(data);
   renderCapabilitiesWorkspace(data);
+  renderHelpCenter();
 }
 
 function populateCategorySelects(categories) {
@@ -152,7 +271,7 @@ function populateCategorySelects(categories) {
 function renderHeaderStatus(data) {
   const pillApprovals = document.getElementById('pill-approvals');
   if (pillApprovals) {
-    pillApprovals.textContent = `Pending Approval Gates: ${data.summary_counts.pending_approvals}`;
+    pillApprovals.textContent = t('pill_approvals', { count: data.summary_counts.pending_approvals }, state.lang);
   }
 }
 
@@ -163,29 +282,35 @@ function renderOverviewWorkspace(data) {
   if (kpiStrip) {
     kpiStrip.innerHTML = `
       <div class="kpi-cell">
-        <div class="kpi-label">Evaluated Opportunities</div>
+        <div class="kpi-label">${escapeHtml(t('kpi_opportunities_label', {}, state.lang))}</div>
         <div class="kpi-value">${c.total_opportunities}</div>
-        <div class="kpi-sub">${c.approved_opportunities} Approved · ${c.evaluating_opportunities} Evaluating · ${c.rejected_opportunities} Rejected</div>
+        <div class="kpi-sub">${escapeHtml(
+          t('kpi_opportunities_sub', {
+            approved: c.approved_opportunities,
+            evaluating: c.evaluating_opportunities,
+            rejected: c.rejected_opportunities
+          }, state.lang)
+        )}</div>
       </div>
       <div class="kpi-cell">
-        <div class="kpi-label">Planned MVP Products</div>
+        <div class="kpi-label">${escapeHtml(t('kpi_products_label', {}, state.lang))}</div>
         <div class="kpi-value">${c.active_products}</div>
-        <div class="kpi-sub">Scoped MVP blueprints &amp; 15-stage roadmaps</div>
+        <div class="kpi-sub">${escapeHtml(t('kpi_products_sub', {}, state.lang))}</div>
       </div>
       <div class="kpi-cell">
-        <div class="kpi-label">Pending Owner Gates</div>
+        <div class="kpi-label">${escapeHtml(t('kpi_approvals_label', {}, state.lang))}</div>
         <div class="kpi-value">${c.pending_approvals}</div>
-        <div class="kpi-sub">Hard financial &amp; public launch locks</div>
+        <div class="kpi-sub">${escapeHtml(t('kpi_approvals_sub', {}, state.lang))}</div>
       </div>
       <div class="kpi-cell">
-        <div class="kpi-label">Owner Capability Areas</div>
+        <div class="kpi-label">${escapeHtml(t('kpi_capabilities_label', {}, state.lang))}</div>
         <div class="kpi-value">${c.total_capabilities}</div>
-        <div class="kpi-sub">UX/UI, Figma Systems, IA, WP, AI Dev</div>
+        <div class="kpi-sub">${escapeHtml(t('kpi_capabilities_sub', {}, state.lang))}</div>
       </div>
       <div class="kpi-cell">
-        <div class="kpi-label">Institutional Memory</div>
+        <div class="kpi-label">${escapeHtml(t('kpi_memory_label', {}, state.lang))}</div>
         <div class="kpi-value">${c.intelligence_records}</div>
-        <div class="kpi-sub">Decisions, rejections &amp; market findings</div>
+        <div class="kpi-sub">${escapeHtml(t('kpi_memory_sub', {}, state.lang))}</div>
       </div>
     `;
   }
@@ -196,12 +321,12 @@ function renderOverviewWorkspace(data) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Opportunity &amp; Category</th>
-            <th>Priority Index</th>
-            <th>Commercial Readiness</th>
-            <th>Technical Feasibility</th>
-            <th>Decision &amp; 4-Way Verified Evidence</th>
-            <th>Action</th>
+            <th>${escapeHtml(t('v2_th_idea', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v2_th_priority', {}, state.lang))} ${renderExplainTerm('priority_index', state.lang)}</th>
+            <th>${escapeHtml(t('v2_th_commercial', {}, state.lang))} ${renderExplainTerm('commercial_readiness', state.lang)}</th>
+            <th>${escapeHtml(t('v2_th_technical', {}, state.lang))} ${renderExplainTerm('technical_feasibility', state.lang)}</th>
+            <th>${escapeHtml(t('v2_th_decision', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v2_th_action', {}, state.lang))}</th>
           </tr>
         </thead>
         <tbody>
@@ -216,7 +341,6 @@ function renderOverviewWorkspace(data) {
               </td>
               <td>
                 <strong>${opp.overall_score}/100</strong>
-                <div class="dossier-item-meta">Heuristic Index</div>
               </td>
               <td>
                 <strong>${opp.commercial_readiness_score ?? 'N/A'}/100</strong>
@@ -224,19 +348,19 @@ function renderOverviewWorkspace(data) {
               </td>
               <td>
                 <strong>${opp.technical_feasibility_score ?? 'N/A'}/100</strong>
-                <div class="dossier-item-meta">Cap Fit: ${opp.capability_fit_detail.fit_score}/10</div>
+                <div class="dossier-item-meta">Fit: ${opp.capability_fit_detail.fit_score}/10</div>
               </td>
               <td>
                 ${renderRecommendationBadge(opp.recommendation)}
                 <div class="dossier-item-meta" style="margin-top:3px;">
-                  Prob: <strong>${eq.verified_problem_count || 0}</strong> ·
-                  Dem: <strong>${eq.verified_demand_count || 0}</strong> ·
-                  Comp: <strong>${eq.verified_competitor_count || 0}</strong> ·
-                  WTP: <strong>${eq.verified_willingness_to_pay_count || 0}</strong>
+                  ${state.lang === 'ur' ? 'مسئلہ' : 'Prob'}: <strong>${eq.verified_problem_count || 0}</strong> ·
+                  ${state.lang === 'ur' ? 'طلب' : 'Dem'}: <strong>${eq.verified_demand_count || 0}</strong> ·
+                  ${state.lang === 'ur' ? 'حریف' : 'Comp'}: <strong>${eq.verified_competitor_count || 0}</strong> ·
+                  ${state.lang === 'ur' ? 'ادائیگی' : 'WTP'}: <strong>${eq.verified_willingness_to_pay_count || 0}</strong>
                 </div>
               </td>
               <td>
-                <button type="button" class="btn btn-small" data-inspect-opp="${escapeHtml(opp.id)}">Inspect Dossier</button>
+                <button type="button" class="btn btn-small" data-inspect-opp="${escapeHtml(opp.id)}">${escapeHtml(t('v2_btn_inspect', {}, state.lang))}</button>
               </td>
             </tr>
           `;
@@ -245,49 +369,6 @@ function renderOverviewWorkspace(data) {
         </tbody>
       </table>
     `;
-  }
-
-  const prodList = document.getElementById('overview-products-list');
-  if (prodList) {
-    prodList.innerHTML = data.products
-      .map(
-        (prod) => `
-        <div class="dossier-item" style="margin-bottom: 10px;">
-          <div class="dossier-item-top">
-            <span class="dossier-item-title">${escapeHtml(prod.name)}</span>
-            <span class="badge badge-info">[STAGE ${prod.current_stage_number}/15: ${escapeHtml(prod.current_stage_name.toUpperCase())}]</span>
-          </div>
-          <div class="dossier-item-meta" style="margin-bottom: 6px;">
-            Real Completion: <strong>${prod.completion_pct}%</strong> (${prod.progress_metrics.completed_tasks}/${prod.progress_metrics.total_tasks} tasks · ${prod.progress_metrics.completed_estimated_hours}/${prod.progress_metrics.total_estimated_hours} hrs)
-          </div>
-          <div class="score-meter"><div class="score-meter-fill" style="width: ${prod.completion_pct}%"></div></div>
-        </div>
-      `
-      )
-      .join('');
-  }
-
-  const apprList = document.getElementById('overview-approvals-list');
-  if (apprList) {
-    if (data.pending_approvals.length === 0) {
-      apprList.innerHTML = `<p class="dossier-item-meta">All financial and public checkpoints are currently clear.</p>`;
-    } else {
-      apprList.innerHTML = data.pending_approvals
-        .map(
-          (req) => `
-          <div class="criteria-cell" style="margin-bottom: 8px;">
-            <strong>[GATE: PENDING OWNER APPROVAL] · ${escapeHtml(req.action_category.toUpperCase())} ($${req.financial_commitment_usd})</strong>
-            <div><strong>${escapeHtml(req.title)}</strong></div>
-            <div class="dossier-item-meta">${escapeHtml(req.description)}</div>
-            <div style="margin-top: 6px;">
-              <button type="button" class="btn btn-small btn-approve" data-decide-appr="${escapeHtml(req.id)}" data-decision="approved">Approve Commitment</button>
-              <button type="button" class="btn btn-small btn-reject" data-decide-appr="${escapeHtml(req.id)}" data-decision="rejected">Reject Commitment</button>
-            </div>
-          </div>
-        `
-        )
-        .join('');
-    }
   }
 }
 
@@ -305,10 +386,10 @@ function renderOpportunitiesWorkspace(data) {
       <div class="dossier-item ${opp.id === state.selectedOpportunityId ? 'selected' : ''}" data-select-opp="${escapeHtml(opp.id)}">
         <div class="dossier-item-top">
           <span class="dossier-item-title">${escapeHtml(opp.title)}</span>
-          <strong>Index: ${opp.overall_score}/100</strong>
+          <strong>${opp.overall_score}/100</strong>
         </div>
         <div class="dossier-item-meta">
-          ${escapeHtml(opp.category)} · Comm: <strong>${opp.commercial_readiness_score}/100</strong> · Tech: <strong>${opp.technical_feasibility_score}/100</strong>
+          ${escapeHtml(opp.category)} · ${state.lang === 'ur' ? 'فروخت' : 'Comm'}: <strong>${opp.commercial_readiness_score}/100</strong> · ${state.lang === 'ur' ? 'بنانا' : 'Tech'}: <strong>${opp.technical_feasibility_score}/100</strong>
         </div>
         <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center;">
           ${renderRecommendationBadge(opp.recommendation)}
@@ -326,15 +407,15 @@ function renderOpportunitiesWorkspace(data) {
 
   const detailPane = document.getElementById('opportunity-detail-pane');
   if (!selected) {
-    detailPane.innerHTML = `<p>No opportunity selected.</p>`;
+    detailPane.innerHTML = `<p>${escapeHtml(state.lang === 'ur' ? 'کوئی آئیڈیا منتخب نہیں کیا گیا۔' : 'No opportunity selected.')}</p>`;
     return;
   }
 
   const sb = selected.score_breakdown;
   const eq = selected.evidence_quality_summary || {};
   const warningsHtml = [
-    ...(sb.blockers || []).map((b) => `<div class="badge badge-danger" style="display:block; margin-bottom:6px; white-space:normal;">[BLOCKER] ${escapeHtml(b)}</div>`),
-    ...(sb.warnings || []).map((w) => `<div class="badge badge-warn" style="display:block; margin-bottom:6px; white-space:normal;">[COMMERCIAL / EVIDENCE WARNING] ${escapeHtml(w)}</div>`)
+    ...(sb.blockers || []).map((b) => `<div class="badge badge-danger" style="display:block; margin-bottom:6px; white-space:normal;">[${state.lang === 'ur' ? 'روکاوٹ' : 'BLOCKER'}] ${escapeHtml(b)}</div>`),
+    ...(sb.warnings || []).map((w) => `<div class="badge badge-warn" style="display:block; margin-bottom:6px; white-space:normal;">[${state.lang === 'ur' ? 'انتباہ' : 'WARNING'}] ${escapeHtml(w)}</div>`)
   ].join('');
 
   detailPane.innerHTML = `
@@ -343,20 +424,23 @@ function renderOpportunitiesWorkspace(data) {
         <span class="mono">${escapeHtml(selected.category)} · ID: ${escapeHtml(selected.id)}</span>
         <h3 style="font-size: 17px; margin-top: 2px;">${escapeHtml(selected.title)}</h3>
       </div>
-      <div style="text-align: right;">
-        <div style="font-size: 20px; font-weight: 700;">Priority Index: ${selected.overall_score} / 100</div>
+      <div style="text-align: end;">
+        <div style="font-size: 20px; font-weight: 700;">
+          ${escapeHtml(t('dossier_overall_score', {}, state.lang))}: ${selected.overall_score} / 100
+          ${renderExplainTerm('priority_index', state.lang)}
+        </div>
         <div class="dossier-item-meta" style="margin-bottom: 4px;">
-          Commercial Readiness: <strong>${selected.commercial_readiness_score}/100</strong> ·
-          Technical Feasibility: <strong>${selected.technical_feasibility_score}/100</strong>
+          ${escapeHtml(t('dossier_commercial_score', {}, state.lang))}: <strong>${selected.commercial_readiness_score}/100</strong> ${renderExplainTerm('commercial_readiness', state.lang)} ·
+          ${escapeHtml(t('dossier_technical_score', {}, state.lang))}: <strong>${selected.technical_feasibility_score}/100</strong> ${renderExplainTerm('technical_feasibility', state.lang)}
         </div>
         ${renderRecommendationBadge(selected.recommendation)}
       </div>
     </div>
 
     <div class="criteria-cell" style="margin-bottom: 12px;">
-      <strong>Score Interpretation &amp; Commercial Readiness Rationale</strong>
+      <strong>${escapeHtml(t('dossier_rationale_heading', {}, state.lang))}</strong>
       <div class="dossier-item-meta" style="margin-bottom: 4px;">
-        <em>Disclaimer: ${escapeHtml(selected.score_disclaimer)}</em>
+        <em><strong>${escapeHtml(t('dossier_disclaimer_prefix', {}, state.lang))}</strong> ${escapeHtml(selected.score_disclaimer)}</em>
       </div>
       <div>${escapeHtml(selected.decision_rationale)}</div>
       <div style="margin-top: 6px;">${warningsHtml}</div>
@@ -364,66 +448,63 @@ function renderOpportunitiesWorkspace(data) {
 
     <div class="criteria-grid" style="margin-bottom: 14px;">
       <div class="criteria-cell">
-        <strong>1. Problem Existence</strong>
-        <div><strong>${eq.verified_problem_count || 0}</strong> active verified source(s)</div>
-        <div class="dossier-item-meta">Confirms regulatory or operational pain exists</div>
+        <strong>${escapeHtml(t('dossier_cat1_title', {}, state.lang))} ${renderExplainTerm('cat_problem_existence', state.lang)}</strong>
+        <div><strong>${eq.verified_problem_count || 0}</strong> ${escapeHtml(t('dossier_cat1_sub', {}, state.lang))}</div>
       </div>
       <div class="criteria-cell">
-        <strong>2. Market Demand</strong>
-        <div><strong>${eq.verified_demand_count || 0}</strong> active verified source(s)</div>
-        <div class="dossier-item-meta">Confirms target users actively request a solution</div>
+        <strong>${escapeHtml(t('dossier_cat2_title', {}, state.lang))} ${renderExplainTerm('cat_market_demand', state.lang)}</strong>
+        <div><strong>${eq.verified_demand_count || 0}</strong> ${escapeHtml(t('dossier_cat2_sub', {}, state.lang))}</div>
       </div>
       <div class="criteria-cell">
-        <strong>3. Competitor Activity</strong>
-        <div><strong>${eq.verified_competitor_count || 0}</strong> active verified source(s)</div>
-        <div class="dossier-item-meta">Confirms free or commercial alternatives exist</div>
+        <strong>${escapeHtml(t('dossier_cat3_title', {}, state.lang))} ${renderExplainTerm('cat_competitor_activity', state.lang)}</strong>
+        <div><strong>${eq.verified_competitor_count || 0}</strong> ${escapeHtml(t('dossier_cat3_sub', {}, state.lang))}</div>
       </div>
       <div class="criteria-cell">
-        <strong>4. Willingness to Pay</strong>
-        <div><strong>${eq.verified_willingness_to_pay_count || 0}</strong> active verified source(s)</div>
+        <strong>${escapeHtml(t('dossier_cat4_title', {}, state.lang))} ${renderExplainTerm('cat_unverified_wtp', state.lang)}</strong>
+        <div><strong>${eq.verified_willingness_to_pay_count || 0}</strong> ${escapeHtml(t('dossier_cat4_sub', {}, state.lang))}</div>
         <div class="dossier-item-meta">Status: <code>${escapeHtml(selected.commercial_validation_status)}</code></div>
       </div>
     </div>
 
     <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
-      <button type="button" class="btn btn-small btn-primary" data-promote-opp="${escapeHtml(selected.id)}">Select &amp; Plan MVP Blueprint</button>
-      <button type="button" class="btn btn-small btn-approve" data-opp-status="${escapeHtml(selected.id)}" data-status="approved">Mark Approved</button>
-      <button type="button" class="btn btn-small btn-secondary" data-opp-status="${escapeHtml(selected.id)}" data-status="evaluating">Hold / Evaluating</button>
-      <button type="button" class="btn btn-small btn-reject" data-opp-status="${escapeHtml(selected.id)}" data-status="rejected">Reject Weak Idea</button>
-      <a class="btn btn-small btn-secondary" href="/api/opportunities/${encodeURIComponent(selected.id)}/export?format=markdown" target="_blank" rel="noopener">Export Markdown Dossier</a>
+      <button type="button" class="btn btn-small btn-primary" data-promote-opp="${escapeHtml(selected.id)}">${escapeHtml(t('dossier_btn_promote', {}, state.lang))}</button>
+      <button type="button" class="btn btn-small btn-approve" data-opp-status="${escapeHtml(selected.id)}" data-status="approved">${escapeHtml(t('dossier_btn_approve', {}, state.lang))}</button>
+      <button type="button" class="btn btn-small btn-secondary" data-opp-status="${escapeHtml(selected.id)}" data-status="evaluating">${escapeHtml(t('dossier_btn_hold', {}, state.lang))}</button>
+      <button type="button" class="btn btn-small btn-reject" data-opp-status="${escapeHtml(selected.id)}" data-status="rejected">${escapeHtml(t('dossier_btn_reject', {}, state.lang))}</button>
+      <a class="btn btn-small btn-secondary" href="/api/opportunities/${encodeURIComponent(selected.id)}/export?format=markdown" target="_blank" rel="noopener">${escapeHtml(t('dossier_btn_export', {}, state.lang))}</a>
     </div>
 
-    <h4 class="sub-box-title">15-Criteria Opportunity Dossier (Verified Facts vs. Commercial Assumptions Explicitly Labeled)</h4>
+    <h4 class="sub-box-title">${escapeHtml(t('dossier_15_heading', {}, state.lang))}</h4>
     <div class="criteria-grid">
-      <div class="criteria-cell"><strong>1. Problem Addressed [FACT/OBSERVATION]</strong>${escapeHtml(selected.problem_statement)}</div>
-      <div class="criteria-cell"><strong>2. Target Audience [CUSTOMER ASSUMPTION]</strong>${escapeHtml(selected.target_audience)}</div>
+      <div class="criteria-cell"><strong>1. Problem Addressed [FACT]</strong>${escapeHtml(selected.problem_statement)}</div>
+      <div class="criteria-cell"><strong>2. Target Customer [GUESS UNTIL PROVEN]</strong>${escapeHtml(selected.target_audience)}</div>
       <div class="criteria-cell"><strong>3. Evidence of Demand [EVIDENCE-BOUND]</strong>${escapeHtml(selected.demand_summary)}</div>
       <div class="criteria-cell"><strong>4. Existing Competitors [MARKET FACT]</strong>${escapeHtml(selected.competitors_summary)}</div>
       <div class="criteria-cell"><strong>5. Current Alternatives [WORKFLOW FACT]</strong>${escapeHtml(selected.alternatives_summary)}</div>
       <div class="criteria-cell"><strong>6. Market Gaps [ANALYSIS]</strong>${escapeHtml(selected.market_gaps)}</div>
       <div class="criteria-cell"><strong>7. Differentiation Potential [STRATEGY]</strong>${escapeHtml(selected.differentiation_potential)}</div>
-      <div class="criteria-cell"><strong>8–10. Complexity, Time &amp; Op Cost [ESTIMATE]</strong>Complexity: <code>${escapeHtml(selected.dev_complexity)}</code> · Est: <strong>${selected.estimated_dev_days} days</strong> · Op Cost: <strong>$${selected.operational_cost_monthly_usd}/mo</strong></div>
-      <div class="criteria-cell"><strong>11. Monetization Model [PRICING HYPOTHESIS]</strong>${escapeHtml(selected.monetization_model)}</div>
-      <div class="criteria-cell"><strong>12. Acquisition Strategy [DISTRIBUTION HYPOTHESIS]</strong>${escapeHtml(selected.acquisition_strategy)}</div>
-      <div class="criteria-cell"><strong>13. Revenue Potential [UNVERIFIED COMMERCIAL ASSUMPTION]</strong>${escapeHtml(selected.revenue_potential_notes)}</div>
-      <div class="criteria-cell"><strong>14. Main Risks [RISK ANALYSIS]</strong>${escapeHtml(selected.main_risks)}</div>
+      <div class="criteria-cell"><strong>8–10. Complexity &amp; Cost [ESTIMATE]</strong>Complexity: <code>${escapeHtml(selected.dev_complexity)}</code> · Days: <strong>${selected.estimated_dev_days}</strong> · Op Cost: <strong>$${selected.operational_cost_monthly_usd}/mo</strong></div>
+      <div class="criteria-cell"><strong>11. Pricing Hypothesis [UNVERIFIED]</strong>${escapeHtml(selected.monetization_model)}</div>
+      <div class="criteria-cell"><strong>12. Acquisition Strategy [HYPOTHESIS]</strong>${escapeHtml(selected.acquisition_strategy)}</div>
+      <div class="criteria-cell"><strong>13. Revenue Potential [UNVERIFIED ASSUMPTION]</strong>${escapeHtml(selected.revenue_potential_notes)}</div>
+      <div class="criteria-cell"><strong>14. Main Risks [ANALYSIS]</strong>${escapeHtml(selected.main_risks)}</div>
       <div class="criteria-cell">
-        <strong>15. Owner Capability Fit [DETERMINISTIC: ${selected.capability_fit_detail.fit_score}/10]</strong>
+        <strong>15. Your Skill Match [${selected.capability_fit_detail.fit_score}/10] ${renderExplainTerm('capability_fit', state.lang)}</strong>
         ${escapeHtml(selected.capability_fit_detail.summary)}
         <div class="dossier-item-meta" style="margin-top:4px;">Difficulty: ${escapeHtml(selected.capability_fit_detail.execution_difficulty)}</div>
       </div>
     </div>
 
-    <h4 class="sub-box-title">11-Dimension Transparent Score Breakdown (Commercial Readiness vs. Technical Feasibility)</h4>
+    <h4 class="sub-box-title">${escapeHtml(t('dossier_11_heading', {}, state.lang))}</h4>
     <table class="data-table">
       <thead>
         <tr>
-          <th>Dimension</th>
-          <th>Sub-Score Group</th>
-          <th>Weight</th>
-          <th>Score (1–10)</th>
-          <th>Weighted Pts</th>
-          <th>Evaluation Criteria</th>
+          <th>${escapeHtml(t('dossier_th_dim', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_group', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_weight', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_score10', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_pts', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_why', {}, state.lang))}</th>
         </tr>
       </thead>
       <tbody>
@@ -445,21 +526,19 @@ function renderOpportunitiesWorkspace(data) {
     </table>
 
     <hr class="structural-divider" />
-    <h4 class="sub-box-title">Attributed Market Evidence Ledger (${selected.evidence.length} Records · Confidence: ${Math.round((selected.evidence_quality_summary?.average_confidence_score || 0) * 100)}%)</h4>
-    <div class="dossier-item-meta" style="margin-bottom: 8px;">
-      Active Verified: <strong>${selected.evidence_quality_summary?.active_verified_count || 0}</strong> (${selected.evidence_quality_summary?.independent_verified_origins_count || 0} independent origin(s)) ·
-      Observations: <strong>${selected.evidence_quality_summary?.practitioner_observation_count || 0}</strong> ·
-      Downgraded Unverified: <strong>${selected.evidence_quality_summary?.downgraded_unverified_count || 0}</strong> ·
-      Stale: <strong>${selected.evidence_quality_summary?.stale_count || 0}</strong> ·
-      Contradicting: <strong>${selected.evidence_quality_summary?.contradicting_count || 0}</strong>
-    </div>
+    <h4 class="sub-box-title">${escapeHtml(
+      t('dossier_ev_heading', {
+        count: selected.evidence.length,
+        conf: Math.round((selected.evidence_quality_summary?.average_confidence_score || 0) * 100)
+      }, state.lang)
+    )}</h4>
     <table class="data-table" style="margin-bottom: 12px;">
       <thead>
         <tr>
           <th>Tier, Category &amp; Status</th>
-          <th>Stance &amp; Conf</th>
-          <th>Claim &amp; Supporting Excerpt</th>
-          <th>Attributed Source &amp; SHA-256</th>
+          <th>Stance &amp; Trust</th>
+          <th>Fact Claim &amp; Direct Quote</th>
+          <th>Source Website &amp; SHA-256</th>
         </tr>
       </thead>
       <tbody>
@@ -470,24 +549,21 @@ function renderOpportunitiesWorkspace(data) {
             <td>
               ${renderEvidenceTierBadge(ev.evidence_tier)}
               <div style="margin-top:4px;">${renderEvidenceCategoryBadge(ev.evidence_category)}</div>
-              <div class="dossier-item-meta" style="margin-top:3px;">
-                Status: <code>${escapeHtml(ev.verification_status || 'verified')}</code>
-              </div>
+              <div class="dossier-item-meta" style="margin-top:3px;">Status: <code>${escapeHtml(ev.verification_status || 'verified')}</code></div>
             </td>
             <td>
               <span class="badge ${ev.stance === 'contradicting' ? 'badge-danger' : 'badge-info'}">[${escapeHtml((ev.stance || 'supporting').toUpperCase())}]</span>
-              <div class="dossier-item-meta" style="margin-top:3px;">Conf: <strong>${Math.round((ev.confidence_score || 0.35) * 100)}%</strong></div>
+              <div class="dossier-item-meta" style="margin-top:3px;">Trust: <strong>${Math.round((ev.confidence_score || 0.35) * 100)}%</strong></div>
             </td>
             <td>
               <strong>[${escapeHtml(ev.claim_type)}]</strong> ${escapeHtml(ev.statement)}
               ${ev.supporting_excerpt ? `<div class="dossier-item-meta" style="margin-top:3px;"><em>Excerpt:</em> "${escapeHtml(ev.supporting_excerpt)}"</div>` : ''}
-              ${ev.verification_notes ? `<div class="dossier-item-meta" style="margin-top:2px;"><em>QC Note:</em> ${escapeHtml(ev.verification_notes)}</div>` : ''}
+              ${ev.verification_notes ? `<div class="dossier-item-meta" style="margin-top:2px;"><em>QC:</em> ${escapeHtml(ev.verification_notes)}</div>` : ''}
             </td>
             <td class="dossier-item-meta">
               <div><strong>${escapeHtml(ev.source_name || 'Source')}</strong></div>
               ${ev.source_url ? `<div><a href="${escapeHtml(ev.source_url)}" target="_blank" rel="noopener">${escapeHtml(ev.source_url)}</a></div>` : `<div>${escapeHtml(ev.source_citation)}</div>`}
               ${ev.source_content_hash ? `<div>SHA-256: <code>${escapeHtml(ev.source_content_hash.slice(0, 12))}...</code></div>` : ''}
-              <div>Discovered: ${escapeHtml((ev.observed_at || '').slice(0, 10))} ${ev.published_at ? `· Pub: ${escapeHtml(ev.published_at.slice(0, 10))}` : ''}</div>
             </td>
           </tr>
         `
@@ -509,59 +585,59 @@ function renderOpportunitiesWorkspace(data) {
           </select>
         </div>
         <div class="form-group">
-          <label for="ev-tier-select">Requested Provenance Tier (Auto-Verified)</label>
+          <label for="ev-tier-select">Evidence Tier ${renderExplainTerm('evidence_tiers', state.lang)}</label>
           <select id="ev-tier-select" name="evidence_tier">
-            <option value="verified_evidence">Verified Evidence (Requires https:// URL + Excerpt)</option>
-            <option value="practitioner_observation">Practitioner Observation</option>
-            <option value="estimate">Estimate</option>
-            <option value="assumption">Assumption</option>
+            <option value="verified_evidence">Verified Web Proof (Requires https:// URL &amp; Excerpt)</option>
+            <option value="practitioner_observation">Personal Work Observation</option>
+            <option value="estimate">Rough Estimate</option>
+            <option value="assumption">Unproven Guess</option>
           </select>
         </div>
         <div class="form-group">
           <label for="ev-stance-select">Evidence Stance</label>
           <select id="ev-stance-select" name="stance">
-            <option value="supporting" selected>Supporting Demand / Viability</option>
-            <option value="contradicting">Contradicting / Counter-Evidence</option>
+            <option value="supporting" selected>Supporting Viability</option>
+            <option value="contradicting">Contradicting / Counterevidence</option>
             <option value="neutral">Neutral Observation</option>
           </select>
         </div>
       </div>
       <div class="form-row-3">
         <div class="form-group">
-          <label for="ev-url-input">Original Source URL (https:// Required for Verified)</label>
-          <input type="text" id="ev-url-input" name="source_url" placeholder="https://wordpress.org/plugins/..." />
+          <label for="ev-url-input">Source URL (https:// Required for Verified)</label>
+          <input type="text" id="ev-url-input" name="source_url" placeholder="https://..." />
         </div>
         <div class="form-group">
           <label for="ev-source-input">Source Name (Required)</label>
-          <input type="text" id="ev-source-input" name="source_citation" required placeholder="e.g., WordPress.org Plugin Directory" />
+          <input type="text" id="ev-source-input" name="source_citation" required placeholder="e.g., WordPress Plugin Directory" />
         </div>
         <div class="form-group">
-          <label for="ev-pub-date">Date Published (YYYY-MM-DD, Optional)</label>
+          <label for="ev-pub-date">Date Published (YYYY-MM-DD)</label>
           <input type="text" id="ev-pub-date" name="published_at" placeholder="2026-10-15" />
         </div>
       </div>
       <div class="form-row-2">
         <div class="form-group">
-          <label for="ev-statement-input">Original Claim Statement (Required)</label>
+          <label for="ev-statement-input">Factual Observation Statement (Required)</label>
           <input type="text" id="ev-statement-input" name="statement" required placeholder="State the factual observation clearly" />
         </div>
         <div class="form-group">
-          <label for="ev-excerpt-input">Supporting Excerpt / Factual Summary (&ge;15 chars for Verified)</label>
-          <input type="text" id="ev-excerpt-input" name="supporting_excerpt" placeholder="Direct factual excerpt or metric from the source" />
+          <label for="ev-excerpt-input">Direct Excerpt from Web Page (&ge;15 chars for Verified)</label>
+          <input type="text" id="ev-excerpt-input" name="supporting_excerpt" placeholder="Exact quote from the website" />
         </div>
       </div>
-      <button type="submit" class="btn btn-secondary btn-small">Verify, Attach Evidence &amp; Re-Score Opportunity</button>
+      <button type="submit" class="btn btn-secondary btn-small">${escapeHtml(t('dossier_ev_add_btn', {}, state.lang))}</button>
     </form>
 
     <hr class="structural-divider" />
-    <h4 class="sub-box-title">Structured Competitor Matrix (${(selected.competitors || []).length} Records)</h4>
+    <h4 class="sub-box-title">${escapeHtml(t('dossier_comp_heading', { count: (selected.competitors || []).length }, state.lang))}</h4>
     <table class="data-table" style="margin-bottom: 12px;">
       <thead>
         <tr>
           <th>Competitor &amp; Pricing</th>
           <th>Threat</th>
-          <th>Provenance</th>
-          <th>Strengths vs. Exploitable Gaps</th>
+          <th>Evidence Tier</th>
+          <th>Strengths vs. Gaps We Exploit</th>
         </tr>
       </thead>
       <tbody>
@@ -604,15 +680,15 @@ function renderOpportunitiesWorkspace(data) {
       </div>
       <div class="form-row-2">
         <div class="form-group">
-          <label for="comp-strengths-input">Incumbent Strengths</label>
-          <input type="text" id="comp-strengths-input" name="strengths" required placeholder="Brand recognition or distribution" />
+          <label for="comp-strengths-input">Competitor Strengths</label>
+          <input type="text" id="comp-strengths-input" name="strengths" required placeholder="Brand recognition or existing distribution" />
         </div>
         <div class="form-group">
-          <label for="comp-gaps-input">Weaknesses &amp; Exploitable Gaps (Required)</label>
-          <input type="text" id="comp-gaps-input" name="weaknesses_and_gaps" required placeholder="Specific UX or pricing weakness we exploit" />
+          <label for="comp-gaps-input">Weaknesses &amp; Gaps We Can Win On (Required)</label>
+          <input type="text" id="comp-gaps-input" name="weaknesses_and_gaps" required placeholder="Clunky UX, slow performance or missing feature" />
         </div>
       </div>
-      <button type="submit" class="btn btn-secondary btn-small">Add Competitor to Matrix</button>
+      <button type="submit" class="btn btn-secondary btn-small">${escapeHtml(t('dossier_comp_add_btn', {}, state.lang))}</button>
     </form>
   `;
 }
@@ -623,7 +699,7 @@ function renderResearchWorkspace(data) {
 
   if (oppSelect) {
     oppSelect.innerHTML =
-      `<option value="">Standalone Discovery Run</option>` +
+      `<option value="">${escapeHtml(t('v1_run_opp_standalone', {}, state.lang))}</option>` +
       data.opportunities
         .map((o) => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.title)}</option>`)
         .join('');
@@ -633,9 +709,7 @@ function renderResearchWorkspace(data) {
     sourceSelect.innerHTML = (data.research_sources || [])
       .map(
         (s) =>
-          `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)} (Rel: ${s.base_reliability_score} · ${
-            s.is_paid_service ? 'PAID/GATED' : 'Free Public'
-          })</option>`
+          `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)} (${s.is_paid_service ? 'PAID / LOCKED' : 'Free Public ($0)'})</option>`
       )
       .join('');
   }
@@ -647,10 +721,10 @@ function renderResearchWorkspace(data) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Source Name &amp; Adapter</th>
-            <th>Status &amp; Auth</th>
-            <th>Data Retrieved &amp; Evidence Types</th>
-            <th>Rate Limit &amp; Restrictions</th>
+            <th>${escapeHtml(t('v1_th_source_name', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v1_th_source_status', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v1_th_source_data', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v1_th_source_limits', {}, state.lang))}</th>
           </tr>
         </thead>
         <tbody>
@@ -660,11 +734,11 @@ function renderResearchWorkspace(data) {
             <tr>
               <td>
                 <strong>${escapeHtml(s.source_name)}</strong>
-                <div class="dossier-item-meta">Adapter: <code>${escapeHtml(s.adapter_key)}</code> · Rel: <strong>${Math.round(s.base_reliability_score * 100)}%</strong></div>
+                <div class="dossier-item-meta">Adapter: <code>${escapeHtml(s.adapter_key)}</code> · Trust: <strong>${Math.round(s.base_reliability_score * 100)}%</strong></div>
               </td>
               <td>
                 <span class="badge ${s.implemented ? 'badge-verified' : 'badge-danger'}">
-                  [${s.implemented ? 'IMPLEMENTED' : 'UNSUPPORTED'}]
+                  [${s.implemented ? 'READY' : 'UNSUPPORTED'}]
                 </span>
                 <div class="dossier-item-meta" style="margin-top:3px;">
                   Cost: <code>${escapeHtml(s.cost_tier.toUpperCase())}</code><br/>
@@ -692,7 +766,7 @@ function renderResearchWorkspace(data) {
   if (runsList) {
     const runs = data.research_runs || [];
     if (runs.length === 0) {
-      runsList.innerHTML = `<p class="dossier-item-meta">No discovery runs recorded yet. Launch a run above.</p>`;
+      runsList.innerHTML = `<p class="dossier-item-meta">${escapeHtml(t('v1_runs_empty', {}, state.lang))}</p>`;
     } else {
       runsList.innerHTML = runs
         .map(
@@ -702,8 +776,7 @@ function renderResearchWorkspace(data) {
           <div class="dossier-item-meta">
             Sources: ${escapeHtml((r.sources_queried || []).join(', '))} ·
             Findings Stored: <strong>${r.findings_created_count}</strong> ·
-            Duplicates Skipped: <strong>${r.duplicates_skipped_count}</strong> ·
-            Conflicts: <strong>${r.conflicts_detected_count}</strong>
+            Duplicates Skipped: <strong>${r.duplicates_skipped_count}</strong>
           </div>
           <div class="dossier-item-meta">${escapeHtml(r.execution_notes)}</div>
           ${
@@ -728,11 +801,11 @@ function renderResearchWorkspace(data) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Opportunity</th>
-            <th>Tier, Category &amp; Verification Status</th>
-            <th>Confidence &amp; SHA-256</th>
-            <th>Claim, Excerpt &amp; Source URL</th>
-            <th>Manual Review Control</th>
+            <th>${escapeHtml(t('v1_th_ev_opp', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v1_th_ev_tier', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v1_th_ev_conf', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v1_th_ev_claim', {}, state.lang))}</th>
+            <th>${escapeHtml(t('v1_th_ev_actions', {}, state.lang))}</th>
           </tr>
         </thead>
         <tbody>
@@ -745,26 +818,24 @@ function renderResearchWorkspace(data) {
                 ${renderEvidenceTierBadge(ev.evidence_tier)}
                 <div style="margin-top:4px;">${renderEvidenceCategoryBadge(ev.evidence_category)}</div>
                 <div class="dossier-item-meta">Status: <code>${escapeHtml(ev.verification_status)}</code></div>
-                <div class="dossier-item-meta">Method: <code>${escapeHtml(ev.verification_method || 'unverified')}</code></div>
               </td>
               <td>
                 <strong>${Math.round((ev.confidence_score || 0.35) * 100)}%</strong>
-                <div class="dossier-item-meta">Rel: ${ev.source_reliability_score} · <code>${escapeHtml(ev.stance)}</code></div>
-                ${ev.http_status ? `<div class="dossier-item-meta">HTTP: <code>${ev.http_status}</code> · SHA-256: <code>${escapeHtml((ev.source_content_hash || '').slice(0, 12))}...</code></div>` : ''}
+                <div class="dossier-item-meta">Rel: ${ev.source_reliability_score}</div>
+                ${ev.http_status ? `<div class="dossier-item-meta">HTTP: <code>${ev.http_status}</code> · SHA: <code>${escapeHtml((ev.source_content_hash || '').slice(0, 10))}...</code></div>` : ''}
               </td>
               <td>
                 <div>${escapeHtml(ev.statement)}</div>
-                ${ev.supporting_excerpt ? `<div class="dossier-item-meta"><em>Excerpt:</em> "${escapeHtml(ev.supporting_excerpt)}"</div>` : ''}
-                ${ev.verification_notes ? `<div class="dossier-item-meta"><em>QC:</em> ${escapeHtml(ev.verification_notes)}</div>` : ''}
+                ${ev.supporting_excerpt ? `<div class="dossier-item-meta"><em>Quote:</em> "${escapeHtml(ev.supporting_excerpt)}"</div>` : ''}
                 <div class="dossier-item-meta">
                   Source: <strong>${escapeHtml(ev.source_name)}</strong>
                   ${ev.source_url ? `(<a href="${escapeHtml(ev.source_url)}" target="_blank" rel="noopener">${escapeHtml(ev.source_url)}</a>)` : ''}
                 </div>
               </td>
               <td>
-                ${ev.source_url ? `<button type="button" class="btn btn-small btn-secondary" data-verify-http-ev="${escapeHtml(ev.id)}" style="margin-bottom:4px;">Fetch &amp; Verify HTTP</button>` : ''}
-                <button type="button" class="btn btn-small btn-approve" data-review-ev="${escapeHtml(ev.id)}" data-ev-status="verified">Verify</button>
-                <button type="button" class="btn btn-small btn-reject" data-review-ev="${escapeHtml(ev.id)}" data-ev-status="rejected">Reject</button>
+                ${ev.source_url ? `<button type="button" class="btn btn-small btn-secondary" data-verify-http-ev="${escapeHtml(ev.id)}" style="margin-bottom:4px;">${escapeHtml(t('v1_btn_verify_http', {}, state.lang))}</button>` : ''}
+                <button type="button" class="btn btn-small btn-approve" data-review-ev="${escapeHtml(ev.id)}" data-ev-status="verified">${escapeHtml(t('v1_btn_mark_verified', {}, state.lang))}</button>
+                <button type="button" class="btn btn-small btn-reject" data-review-ev="${escapeHtml(ev.id)}" data-ev-status="rejected">${escapeHtml(t('v1_btn_mark_rejected', {}, state.lang))}</button>
               </td>
             </tr>
           `
@@ -790,7 +861,7 @@ async function renderExecutionWorkspace(data) {
 
   const product = data.products.find((p) => p.id === state.selectedProductId) || data.products[0];
   if (!product) {
-    container.innerHTML = `<div class="ledger-box"><p>No planned MVP products yet. Select an opportunity in View 2 ("Evaluate &amp; Compare") and click "Select &amp; Plan MVP Blueprint".</p></div>`;
+    container.innerHTML = `<div class="ledger-box"><p>${escapeHtml(t('v3_empty_products', {}, state.lang))}</p></div>`;
     return;
   }
 
@@ -803,9 +874,9 @@ async function renderExecutionWorkspace(data) {
           <span class="mono">Category: ${escapeHtml(product.category)} · Status: ${escapeHtml(product.status.toUpperCase())}</span>
           <h3>${escapeHtml(product.name)} — ${escapeHtml(product.tagline)}</h3>
         </div>
-        <div style="text-align: right;">
-          <div style="font-size: 22px; font-weight: 700;">${product.completion_pct}% Real Completion</div>
-          <span class="badge badge-info">[ACTIVE STAGE ${product.current_stage_number}/15: ${escapeHtml(product.current_stage_name.toUpperCase())}]</span>
+        <div style="text-align: end;">
+          <div style="font-size: 22px; font-weight: 700;">${product.completion_pct}% ${state.lang === 'ur' ? 'مکمل' : 'Completed'}</div>
+          <span class="badge badge-info">[STAGE ${product.current_stage_number}/15: ${escapeHtml(product.current_stage_name.toUpperCase())}]</span>
         </div>
       </div>
 
@@ -813,131 +884,97 @@ async function renderExecutionWorkspace(data) {
         <div class="score-meter-fill" style="width: ${product.completion_pct}%"></div>
       </div>
 
-      <h4 class="sub-box-title">Selected Opportunity MVP Blueprint &amp; Commercial Validation Gate</h4>
+      <h4 class="sub-box-title">${escapeHtml(t('v3_blueprint_heading', {}, state.lang))}</h4>
       <div class="criteria-grid" style="margin-bottom: 14px;">
         <div class="criteria-cell">
-          <strong>Target Customer Segment [ASSUMPTION UNTIL VALIDATED]</strong>
+          <strong>${escapeHtml(t('v3_cell_customer', {}, state.lang))}</strong>
           <div>${escapeHtml(product.target_audience)}</div>
         </div>
         <div class="criteria-cell">
-          <strong>Must-Have V1 Features (&le;14-Day Build Wedge)</strong>
+          <strong>${escapeHtml(t('v3_cell_must_have', {}, state.lang))} ${renderExplainTerm('mvp_scope', state.lang)}</strong>
           <div>${escapeHtml(product.mvp_must_have_features)}</div>
         </div>
         <div class="criteria-cell">
-          <strong>Explicitly Excluded Non-Goals (Anti-Scope-Creep Boundary)</strong>
+          <strong>${escapeHtml(t('v3_cell_excluded', {}, state.lang))} ${renderExplainTerm('excluded_scope', state.lang)}</strong>
           <div>${escapeHtml(product.mvp_excluded_scope)}</div>
         </div>
         <div class="criteria-cell">
-          <strong>Pricing &amp; Monetization Hypothesis [UNVERIFIED]</strong>
+          <strong>${escapeHtml(t('v3_cell_pricing', {}, state.lang))}</strong>
           <div>${escapeHtml(product.pricing_hypothesis)}</div>
         </div>
         <div class="criteria-cell" style="grid-column: 1 / -1;">
-          <strong>Buyer Validation Criteria (Explicit Build / Pivot / Abandon Thresholds)</strong>
+          <strong>${escapeHtml(t('v3_cell_validation', {}, state.lang))} ${renderExplainTerm('buyer_validation_criteria', state.lang)}</strong>
           <div>${escapeHtml(product.buyer_validation_criteria)}</div>
-        </div>
-      </div>
-
-      <div class="criteria-grid">
-        <div class="criteria-cell"><strong>Positioning</strong>${escapeHtml(product.positioning)}</div>
-        <div class="criteria-cell"><strong>UX Architecture Spec</strong>${escapeHtml(product.ux_architecture_notes)}</div>
-        <div class="criteria-cell"><strong>Pragmatic Tech Stack</strong>${escapeHtml(product.tech_stack)}</div>
-        <div class="criteria-cell">
-          <strong>Effort &amp; Remaining Work</strong>
-          Completed Tasks: <strong>${m.completed_tasks}/${m.total_tasks}</strong> ·
-          Completed Effort: <strong>${m.completed_estimated_hours}/${m.total_estimated_hours} hrs</strong> ·
-          Remaining Effort: <strong>${m.remaining_estimated_hours} hrs</strong> ·
-          Actual Logged: <strong>${m.total_actual_hours} hrs</strong>
         </div>
       </div>
 
       <details style="margin-top: 12px;">
         <summary style="cursor: pointer; font-weight: 600; padding: 6px 0;">
-          Edit Selected Opportunity MVP Blueprint (Must-Have Features, Excluded Non-Goals, Pricing Hypothesis &amp; Validation Criteria)
+          ${escapeHtml(t('v3_edit_summary', {}, state.lang))}
         </summary>
         <form id="form-update-mvp-plan" data-prod-id="${escapeHtml(product.id)}" class="structured-form" style="margin-top: 10px;">
           <div class="form-row-2">
             <div class="form-group">
-              <label for="mvp-target-audience">Target Buyer Segment</label>
+              <label for="mvp-target-audience">${escapeHtml(t('v3_cell_customer', {}, state.lang))}</label>
               <input type="text" id="mvp-target-audience" name="target_audience" value="${escapeHtml(product.target_audience)}" required />
             </div>
             <div class="form-group">
-              <label for="mvp-pricing-hyp">Pricing &amp; Monetization Hypothesis</label>
+              <label for="mvp-pricing-hyp">${escapeHtml(t('v3_cell_pricing', {}, state.lang))}</label>
               <input type="text" id="mvp-pricing-hyp" name="pricing_hypothesis" value="${escapeHtml(product.pricing_hypothesis)}" required />
             </div>
           </div>
           <div class="form-group">
-            <label for="mvp-must-have">Must-Have V1 Features (Core Wedge Only)</label>
+            <label for="mvp-must-have">${escapeHtml(t('v3_cell_must_have', {}, state.lang))}</label>
             <textarea id="mvp-must-have" name="mvp_must_have_features" rows="2" required>${escapeHtml(product.mvp_must_have_features)}</textarea>
           </div>
           <div class="form-group">
-            <label for="mvp-excluded">Explicitly Excluded Non-Goals (Scope Boundary)</label>
+            <label for="mvp-excluded">${escapeHtml(t('v3_cell_excluded', {}, state.lang))}</label>
             <textarea id="mvp-excluded" name="mvp_excluded_scope" rows="2" required>${escapeHtml(product.mvp_excluded_scope)}</textarea>
           </div>
           <div class="form-group">
-            <label for="mvp-validation-criteria">Buyer Validation Criteria (Build / Pivot / Abandon Thresholds)</label>
+            <label for="mvp-validation-criteria">${escapeHtml(t('v3_cell_validation', {}, state.lang))}</label>
             <textarea id="mvp-validation-criteria" name="buyer_validation_criteria" rows="2" required>${escapeHtml(product.buyer_validation_criteria)}</textarea>
           </div>
-          <button type="submit" class="btn btn-primary btn-small">Save MVP Plan Updates</button>
+          <button type="submit" class="btn btn-primary btn-small">${escapeHtml(t('v3_save_plan_btn', {}, state.lang))}</button>
         </form>
       </details>
-
-      ${
-        product.dependency_diagnostics?.next_critical_task
-          ? `<div class="criteria-cell" style="margin-top: 10px;">
-              <strong>Next Critical-Path Milestone</strong>
-              Stage ${product.dependency_diagnostics.next_critical_task.stage_number} (${escapeHtml(
-                product.dependency_diagnostics.next_critical_task.stage_name
-              )}): ${escapeHtml(product.dependency_diagnostics.next_critical_task.title)} (${
-                product.dependency_diagnostics.next_critical_task.estimated_hours
-              }h est)
-              ${(product.dependency_diagnostics.warnings || [])
-                .map((w) => `<div class="badge badge-warn" style="display:block; margin-top:4px; white-space:normal;">${escapeHtml(w)}</div>`)
-                .join('')}
-            </div>`
-          : ''
-      }
     </div>
 
     <div class="ledger-box">
       <div class="box-header">
-        <h3>15-Stage Product Development Workflow, Milestones &amp; Acceptance Criteria</h3>
+        <h3>${escapeHtml(t('v3_roadmap_heading', {}, state.lang))}</h3>
       </div>
       <table class="data-table">
         <thead>
           <tr>
-            <th>Stage &amp; Phase</th>
-            <th>Milestone &amp; Task</th>
-            <th>Effort (Est / Actual)</th>
-            <th>Dependencies &amp; Risks</th>
+            <th>Stage</th>
+            <th>Task &amp; Goal</th>
+            <th>Effort (Est / Logged)</th>
             <th>Acceptance Criteria</th>
-            <th>Status Control</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
           ${product.tasks
             .map(
-              (t) => `
+              (tItem) => `
             <tr>
               <td>
-                <strong>Stage ${t.stage_number}: ${escapeHtml(t.stage_name)}</strong>
-                <div class="dossier-item-meta">${escapeHtml(t.phase_name)}</div>
+                <strong>Stage ${tItem.stage_number}</strong>
+                <div class="dossier-item-meta">${escapeHtml(tItem.stage_name)}</div>
               </td>
               <td>
-                <strong>${escapeHtml(t.milestone_name)}</strong>
-                <div>${escapeHtml(t.title)}</div>
+                <strong>${escapeHtml(tItem.title)}</strong>
+                <div class="dossier-item-meta">${escapeHtml(tItem.milestone_name)}</div>
               </td>
-              <td class="mono">${t.estimated_hours}h est / ${t.actual_hours}h actual</td>
-              <td class="dossier-item-meta">
-                <div><strong>Dep:</strong> ${escapeHtml(t.dependencies)}</div>
-                <div><strong>Risk:</strong> ${escapeHtml(t.risks)}</div>
-              </td>
-              <td class="dossier-item-meta">${escapeHtml(t.acceptance_criteria)}</td>
+              <td class="mono">${tItem.estimated_hours}h / ${tItem.actual_hours}h</td>
+              <td class="dossier-item-meta">${escapeHtml(tItem.acceptance_criteria)}</td>
               <td>
-                <select class="task-status-select" data-task-id="${escapeHtml(t.id)}" data-est="${t.estimated_hours}" aria-label="Status for Stage ${t.stage_number} ${escapeHtml(t.stage_name)}">
-                  <option value="todo" ${t.status === 'todo' ? 'selected' : ''}>To Do</option>
-                  <option value="in_progress" ${t.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
-                  <option value="blocked" ${t.status === 'blocked' ? 'selected' : ''}>Blocked</option>
-                  <option value="done" ${t.status === 'done' ? 'selected' : ''}>Done (Verified)</option>
+                <select class="task-status-select" data-task-id="${escapeHtml(tItem.id)}" data-est="${tItem.estimated_hours}">
+                  <option value="todo" ${tItem.status === 'todo' ? 'selected' : ''}>To Do</option>
+                  <option value="in_progress" ${tItem.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                  <option value="blocked" ${tItem.status === 'blocked' ? 'selected' : ''}>Blocked</option>
+                  <option value="done" ${tItem.status === 'done' ? 'selected' : ''}>Done</option>
                 </select>
               </td>
             </tr>
@@ -950,209 +987,18 @@ async function renderExecutionWorkspace(data) {
   `;
 }
 
-async function renderGrowthWorkspace(data) {
-  const container = document.getElementById('growth-workspace-container');
-  if (!container) return;
-  const product = data.products.find((p) => p.id === state.selectedProductId) || data.products[0];
-  if (!product) {
-    container.innerHTML = `<div class="ledger-box"><p>Promote an approved opportunity into an active product to configure acquisition channels and monetization.</p></div>`;
-    return;
-  }
-
-  const gw = await fetchJson(`/api/products/${encodeURIComponent(product.id)}/growth`);
-
-  container.innerHTML = `
-    <div class="split-grid-2col">
-      <div class="ledger-box">
-        <div class="box-header">
-          <h3>Acquisition &amp; Distribution Channels — ${escapeHtml(product.name)}</h3>
-        </div>
-        <p class="dossier-item-meta">
-          SEO is one channel, not the identity of the product. Paid channels automatically trigger an Owner Financial Approval Gate.
-        </p>
-        <table class="data-table" style="margin-bottom: 14px;">
-          <thead>
-            <tr>
-              <th>Channel &amp; Category</th>
-              <th>Fit</th>
-              <th>Monthly Cost</th>
-              <th>Status</th>
-              <th>Playbook &amp; Expected Return</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${gw.channels
-              .map(
-                (ch) => `
-              <tr>
-                <td>
-                  <strong>${escapeHtml(ch.channel_name)}</strong>
-                  <div class="dossier-item-meta">Category: <code>${escapeHtml(ch.channel_category)}</code></div>
-                </td>
-                <td><strong>${ch.fit_score}/10</strong></td>
-                <td>$${ch.estimated_monthly_cost_usd}/mo</td>
-                <td>
-                  <span class="badge ${ch.status === 'gated_approval' ? 'badge-warn' : 'badge-verified'}">
-                    [${escapeHtml(ch.status.toUpperCase())}]
-                  </span>
-                </td>
-                <td class="dossier-item-meta">
-                  <div><strong>ROI Rationale:</strong> ${escapeHtml(ch.expected_return_rationale)}</div>
-                  <div><strong>Playbook:</strong> ${escapeHtml(ch.execution_playbook)}</div>
-                </td>
-              </tr>
-            `
-              )
-              .join('')}
-          </tbody>
-        </table>
-
-        <h4 class="sub-box-title">Add Acquisition Channel</h4>
-        <form id="form-add-channel" data-prod-id="${escapeHtml(product.id)}" class="structured-form">
-          <div class="form-row-3">
-            <div class="form-group">
-              <label for="gc-name">Channel Name (Required)</label>
-              <input type="text" id="gc-name" name="channel_name" required placeholder="e.g., Reddit r/designsystems Teardown" />
-            </div>
-            <div class="form-group">
-              <label for="gc-cat">Channel Category</label>
-              <select id="gc-cat" name="channel_category">
-                <option value="product_directories">Product Directories &amp; Ecosystems</option>
-                <option value="search_intent">Search Intent / Utility SEO</option>
-                <option value="community_distribution">Community Distribution</option>
-                <option value="content_marketing">Content Marketing</option>
-                <option value="email_marketing">Email Marketing</option>
-                <option value="partnerships">Partnerships &amp; Affiliates</option>
-                <option value="social_media">Organic Social Media</option>
-                <option value="paid_advertising">Paid Advertising (Gated Approval)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="gc-cost">Est. Monthly Cost (USD)</label>
-              <input type="number" id="gc-cost" name="estimated_monthly_cost_usd" min="0" value="0" required />
-            </div>
-          </div>
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="gc-rationale">Expected Return Rationale (Required)</label>
-              <input type="text" id="gc-rationale" name="expected_return_rationale" required placeholder="Why this channel reaches buyers efficiently" />
-            </div>
-            <div class="form-group">
-              <label for="gc-playbook">Execution Playbook (Required)</label>
-              <input type="text" id="gc-playbook" name="execution_playbook" required placeholder="Concrete execution steps" />
-            </div>
-          </div>
-          <button type="submit" class="btn btn-secondary btn-small">Add Distribution Channel</button>
-        </form>
-
-        <hr class="structural-divider" />
-        <h4 class="sub-box-title">Search Intent &amp; Conversion Asset Clusters (${(gw.search_intent_clusters || []).length})</h4>
-        <table class="data-table" style="margin-bottom: 12px;">
-          <thead>
-            <tr>
-              <th>Topic Cluster &amp; Intent</th>
-              <th>Target Query Pattern</th>
-              <th>Conversion Asset</th>
-              <th>Provenance</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${(gw.search_intent_clusters || [])
-              .map(
-                (cl) => `
-              <tr>
-                <td><strong>${escapeHtml(cl.topic_cluster)}</strong><div class="dossier-item-meta"><code>${escapeHtml(cl.intent_type)}</code> · ${escapeHtml(cl.status)}</div></td>
-                <td><code>${escapeHtml(cl.target_query_pattern)}</code></td>
-                <td>${escapeHtml(cl.conversion_asset)}</td>
-                <td>${renderEvidenceTierBadge(cl.demand_evidence_tier)}</td>
-              </tr>
-            `
-              )
-              .join('')}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="ledger-box">
-        <div class="box-header">
-          <h3>Monetization Strategy &amp; Honest Performance Telemetry</h3>
-        </div>
-        <div class="criteria-cell" style="margin-bottom: 12px;">
-          <strong>Active Monetization Model: ${escapeHtml(product.monetization_model)}</strong>
-          <div class="dossier-item-meta">${escapeHtml(product.monetization_tradeoffs)}</div>
-          ${
-            gw.unit_economics
-              ? `<div class="dossier-item-meta" style="margin-top:6px;">
-                  <strong>Unit Economics:</strong> Active Burn: <code>$${gw.unit_economics.active_channel_monthly_burn_usd}/mo</code> ·
-                  Recorded Revenue: <code>$${gw.unit_economics.recorded_revenue_total_usd}</code> ·
-                  Net Cashflow: <code>$${gw.unit_economics.net_cashflow_usd}</code> ·
-                  LTV:CAC: <code>${escapeHtml(gw.unit_economics.ltv_cac_status)}</code>
-                </div>`
-              : ''
-          }
-        </div>
-
-        <h4 class="sub-box-title">Comparative Monetization Models &amp; Tradeoffs</h4>
-        <div class="dossier-list" style="margin-bottom: 14px;">
-          ${gw.monetization_recommendations
-            .slice(0, 3)
-            .map(
-              (m) => `
-            <div class="criteria-cell">
-              <strong>${escapeHtml(m.model)} (${escapeHtml(m.recommended_price_band)}) ${m.is_category_match ? '— [CATEGORY MATCH]' : ''}</strong>
-              <div class="dossier-item-meta"><strong>Pros:</strong> ${escapeHtml(m.pros)}</div>
-              <div class="dossier-item-meta"><strong>Tradeoffs:</strong> ${escapeHtml(m.cons)}</div>
-            </div>
-          `
-            )
-            .join('')}
-        </div>
-
-        <h4 class="sub-box-title">Business Performance Ledger (Never Fabricated)</h4>
-        <p class="dossier-item-meta">${escapeHtml(gw.honest_telemetry_status)}</p>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th>Visitors</th>
-              <th>Conv %</th>
-              <th>Revenue</th>
-              <th>Op Cost</th>
-              <th>Provenance</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${gw.metrics
-              .map(
-                (pm) => `
-              <tr>
-                <td><strong>${escapeHtml(pm.period_label)}</strong><div class="dossier-item-meta">${escapeHtml(pm.notes)}</div></td>
-                <td>${pm.visitors === null ? '<code>N/A</code>' : pm.visitors}</td>
-                <td>${pm.conversion_rate_pct === null ? '<code>N/A</code>' : `${pm.conversion_rate_pct}%`}</td>
-                <td><strong>$${pm.revenue_usd ?? 0}</strong></td>
-                <td>$${pm.operating_cost_usd ?? 0}</td>
-                <td><span class="badge badge-info">[${escapeHtml(pm.data_provenance)}]</span></td>
-              </tr>
-            `
-              )
-              .join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
 function renderApprovalsWorkspace(data) {
   const listEl = document.getElementById('approvals-queue-list');
+  if (!listEl) return;
+
   listEl.innerHTML = `
     <table class="data-table">
       <thead>
         <tr>
-          <th>Gate Status</th>
-          <th>Category &amp; Financial Impact</th>
-          <th>Commitment Details</th>
-          <th>Owner Decision Control</th>
+          <th>Status</th>
+          <th>Cost</th>
+          <th>Action Title &amp; Risk Notes</th>
+          <th>Your Decision</th>
         </tr>
       </thead>
       <tbody>
@@ -1167,29 +1013,24 @@ function renderApprovalsWorkspace(data) {
                   : req.status === 'rejected'
                     ? 'badge-danger'
                     : 'badge-warn'
-              }">[GATE: ${escapeHtml(req.status.toUpperCase())}]</span>
+              }">[${escapeHtml(req.status.toUpperCase())}]</span>
             </td>
             <td>
-              <code>${escapeHtml(req.action_category)}</code>
-              <div><strong>$${req.financial_commitment_usd} USD</strong></div>
+              <strong>$${req.financial_commitment_usd} USD</strong>
+              <div class="dossier-item-meta"><code>${escapeHtml(req.action_category)}</code></div>
             </td>
             <td>
               <strong>${escapeHtml(req.title)}</strong>
               <div class="dossier-item-meta">${escapeHtml(req.description)}</div>
-              ${
-                req.owner_decision_notes
-                  ? `<div class="dossier-item-meta"><strong>Owner Notes:</strong> ${escapeHtml(req.owner_decision_notes)}</div>`
-                  : ''
-              }
             </td>
             <td>
               ${
                 req.status === 'pending'
                   ? `
-                <button type="button" class="btn btn-small btn-approve" data-decide-appr="${escapeHtml(req.id)}" data-decision="approved">Approve</button>
-                <button type="button" class="btn btn-small btn-reject" data-decide-appr="${escapeHtml(req.id)}" data-decision="rejected">Reject</button>
+                <button type="button" class="btn btn-small btn-approve" data-decide-appr="${escapeHtml(req.id)}" data-decision="approved">${state.lang === 'ur' ? 'منظور کریں' : 'Approve'}</button>
+                <button type="button" class="btn btn-small btn-reject" data-decide-appr="${escapeHtml(req.id)}" data-decision="rejected">${state.lang === 'ur' ? 'مسترد کریں' : 'Reject'}</button>
               `
-                  : `<span class="mono">Decided: ${escapeHtml(req.decided_at ? req.decided_at.slice(0, 10) : 'Recorded')}</span>`
+                  : `<span class="mono">Decided: ${escapeHtml((req.decided_at || '').slice(0, 10))}</span>`
               }
             </td>
           </tr>
@@ -1204,120 +1045,134 @@ function renderApprovalsWorkspace(data) {
 function renderCapabilitiesWorkspace(data) {
   const profileCard = document.getElementById('owner-profile-card');
   const p = data.owner.profile;
-
-  profileCard.innerHTML = `
-    <div class="criteria-cell" style="margin-bottom: 12px;">
-      <strong>Primary Strategic Direction: ${escapeHtml(p.primary_direction)}</strong>
-      <div style="margin-top: 4px;">${escapeHtml(p.engineering_constraint_summary)}</div>
-      <div class="dossier-item-meta" style="margin-top: 4px;"><strong>Secondary Options:</strong> ${escapeHtml(p.secondary_options.join(' · '))}</div>
-    </div>
-  `;
+  if (profileCard) {
+    profileCard.innerHTML = `
+      <div class="criteria-cell" style="margin-bottom: 12px;">
+        <strong>Direction: ${escapeHtml(p.primary_direction)}</strong>
+        <div style="margin-top: 4px;">${escapeHtml(p.engineering_constraint_summary)}</div>
+      </div>
+    `;
+  }
 
   const capTable = document.getElementById('capabilities-matrix-table');
-  capTable.innerHTML = `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Capability</th>
-          <th>Category</th>
-          <th>Proficiency</th>
-          <th>Execution Leverage &amp; Notes</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.owner.capabilities
-          .map(
-            (cap) => `
+  if (capTable) {
+    capTable.innerHTML = `
+      <table class="data-table">
+        <thead>
           <tr>
-            <td><strong>${escapeHtml(cap.name)}</strong></td>
-            <td><code>${escapeHtml(cap.category)}</code></td>
-            <td><strong>${cap.proficiency_level} / 5</strong></td>
-            <td>
-              <span class="badge badge-info">[${escapeHtml(cap.execution_leverage)}]</span>
-              <div class="dossier-item-meta" style="margin-top: 3px;">${escapeHtml(cap.notes)}</div>
-            </td>
+            <th>Skill Name</th>
+            <th>Category</th>
+            <th>Proficiency</th>
+            <th>Leverage Notes</th>
           </tr>
-        `
-          )
-          .join('')}
-      </tbody>
-    </table>
-  `;
+        </thead>
+        <tbody>
+          ${data.owner.capabilities
+            .map(
+              (cap) => `
+            <tr>
+              <td><strong>${escapeHtml(cap.name)}</strong></td>
+              <td><code>${escapeHtml(cap.category)}</code></td>
+              <td><strong>${cap.proficiency_level} / 5</strong></td>
+              <td class="dossier-item-meta">${escapeHtml(cap.notes)}</td>
+            </tr>
+          `
+            )
+            .join('')}
+        </tbody>
+      </table>
+    `;
+  }
 
   const biList = document.getElementById('intelligence-memory-list');
-  const proactive = data.proactive_intelligence || { proactive_action_queue: [], unexplored_high_fit_categories: [] };
-
-  biList.innerHTML = `
-    <div class="criteria-cell" style="margin-bottom: 12px;">
-      <strong>Proactive AI Business Intelligence Recommendations</strong>
-      ${(proactive.proactive_action_queue || [])
-        .map(
-          (item) => `
-        <div style="margin-top: 6px;">
-          <span class="badge ${item.priority === 'URGENT' ? 'badge-warn' : 'badge-info'}">[${escapeHtml(item.type)}]</span>
-          <strong>${escapeHtml(item.target)}:</strong> ${escapeHtml(item.recommendation)}
-        </div>
-      `
-        )
-        .join('')}
-      ${
-        (proactive.unexplored_high_fit_categories || []).length > 0
-          ? `<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-color);">
-              <strong>Unexplored High-Fit Product Categories Aligned with Level-5 Capabilities:</strong>
-              ${proactive.unexplored_high_fit_categories
-                .map(
-                  (u) => `<div class="dossier-item-meta" style="margin-top:4px;">• <strong>${escapeHtml(u.category)}</strong> — ${escapeHtml(u.concept)}: ${escapeHtml(u.why_it_fits)}</div>`
-                )
-                .join('')}
-            </div>`
-          : ''
-      }
-    </div>
-
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Type &amp; Provenance</th>
-          <th>Title &amp; Summary</th>
-          <th>Future Recommendation Implication</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.recent_intelligence
-          .map(
-            (entry) => `
+  if (biList) {
+    biList.innerHTML = `
+      <table class="data-table">
+        <thead>
           <tr>
-            <td>
-              <code>${escapeHtml(entry.entry_type)}</code>
-              <div style="margin-top: 4px;">${renderEvidenceTierBadge(entry.evidence_tier)}</div>
-            </td>
-            <td>
-              <strong>${escapeHtml(entry.title)}</strong>
-              <div class="dossier-item-meta">${escapeHtml(entry.summary)}</div>
-            </td>
-            <td class="dossier-item-meta">${escapeHtml(entry.future_implication)}</td>
+            <th>Type</th>
+            <th>Title &amp; Summary</th>
+            <th>Future Recommendation Note</th>
           </tr>
-        `
-          )
-          .join('')}
-      </tbody>
-    </table>
-  `;
+        </thead>
+        <tbody>
+          ${data.recent_intelligence
+            .map(
+              (entry) => `
+            <tr>
+              <td><code>${escapeHtml(entry.entry_type)}</code></td>
+              <td>
+                <strong>${escapeHtml(entry.title)}</strong>
+                <div class="dossier-item-meta">${escapeHtml(entry.summary)}</div>
+              </td>
+              <td class="dossier-item-meta">${escapeHtml(entry.future_implication)}</td>
+            </tr>
+          `
+            )
+            .join('')}
+        </tbody>
+      </table>
+    `;
+  }
 }
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
   applyTheme(state.theme);
+  applyLanguage(state.lang);
 
+  // Appearance & Language controls
   document.getElementById('theme-toggle-btn').addEventListener('click', () => {
     applyTheme(state.theme === 'light' ? 'dark' : 'light');
+  });
+
+  document.getElementById('lang-btn-en').addEventListener('click', () => {
+    applyLanguage('en');
+    showFeedback(t('fb_lang_switched', {}, 'en'));
+  });
+
+  document.getElementById('lang-btn-ur').addEventListener('click', () => {
+    applyLanguage('ur');
+    showFeedback(t('fb_lang_switched', {}, 'ur'));
   });
 
   document.querySelectorAll('.nav-tab').forEach((btn) => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
+  // Global event delegation
   document.body.addEventListener('click', async (e) => {
+    // ExplainTerm toggle
+    const explainBtn = e.target.closest('[data-explain-toggle]');
+    if (explainBtn) {
+      const wrapper = explainBtn.closest('.explain-term-wrapper');
+      const card = wrapper ? wrapper.querySelector('.explain-term-card') : null;
+      if (card) {
+        const isHidden = card.classList.contains('hidden');
+        card.classList.toggle('hidden', !isHidden);
+        explainBtn.setAttribute('aria-expanded', String(isHidden));
+      }
+      return;
+    }
+
+    // Getting Started banner toggle
+    const gsToggle = e.target.closest('[data-gs-toggle]');
+    if (gsToggle) {
+      const mode = gsToggle.dataset.gsToggle;
+      state.gsCollapsed = mode === 'collapse';
+      localStorage.setItem('straw_gs_collapsed', String(state.gsCollapsed));
+      renderGettingStarted();
+      return;
+    }
+
+    // Help topic switch
+    const helpBtn = e.target.closest('[data-help-topic]');
+    if (helpBtn) {
+      state.helpSection = helpBtn.dataset.helpTopic;
+      renderHelpCenter();
+      return;
+    }
+
     const gotoBtn = e.target.closest('[data-goto-tab]');
     if (gotoBtn) {
       switchTab(gotoBtn.dataset.gotoTab);
@@ -1348,12 +1203,10 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({
           status: newStatus,
           rejection_reason:
-            newStatus === 'rejected'
-              ? 'Rejected by owner after evaluating 11-dimension score and evidence.'
-              : ''
+            newStatus === 'rejected' ? 'Rejected by owner after evaluating evidence.' : ''
         })
       });
-      showFeedback(`Opportunity status updated to ${newStatus.toUpperCase()}.`);
+      showFeedback(t('fb_opp_status', { status: newStatus.toUpperCase() }, state.lang));
       await loadDashboard();
       return;
     }
@@ -1366,30 +1219,9 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({})
       });
       state.selectedProductId = res.product.id;
-      showFeedback(`Promoted "${res.product.name}" into active 15-stage product execution!`);
+      showFeedback(t('fb_opp_promoted', { name: res.product.name }, state.lang));
       await loadDashboard();
       switchTab('execution');
-      return;
-    }
-
-    const simBtn = e.target.closest('[data-simulate-opp]');
-    if (simBtn) {
-      const oppId = simBtn.dataset.simulateOpp;
-      const res = await fetchJson(`/api/opportunities/${encodeURIComponent(oppId)}/simulate`, {
-        method: 'POST',
-        body: JSON.stringify({ simulate_verified_evidence: true, dev_complexity: 'low' })
-      });
-      const s = res.simulation;
-      const simBox = document.getElementById('simulation-result-box');
-      if (simBox) {
-        simBox.classList.remove('hidden');
-        simBox.className = 'criteria-cell';
-        simBox.innerHTML = `
-          <strong>Sensitivity Simulation Result (Non-Destructive)</strong>
-          <div>If 1+ Verified Demand Evidence record is acquired and complexity is scoped to <code>low</code>:</div>
-          <div>Baseline: <strong>${s.baseline_score}/100</strong> (<code>${escapeHtml(s.baseline_recommendation)}</code>) &rarr; Simulated: <strong>${s.simulated_score}/100</strong> (<code>${escapeHtml(s.simulated_recommendation)}</code>) [Delta: <strong>${s.score_delta >= 0 ? '+' : ''}${s.score_delta} pts</strong>]</div>
-        `;
-      }
       return;
     }
 
@@ -1401,10 +1233,10 @@ document.addEventListener('DOMContentLoaded', () => {
         method: 'PATCH',
         body: JSON.stringify({
           decision,
-          owner_decision_notes: `Owner explicitly marked ${decision} via STRAW Command Workspace.`
+          owner_decision_notes: `Owner marked ${decision} via Command Workspace.`
         })
       });
-      showFeedback(`Approval checkpoint marked as ${decision.toUpperCase()}.`);
+      showFeedback(t('fb_appr_decided', { decision: decision.toUpperCase() }, state.lang));
       await loadDashboard();
       return;
     }
@@ -1418,11 +1250,14 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify({})
         });
         showFeedback(
-          `HTTP Source Check Complete: Status=${res.evidence.verification_status.toUpperCase()} (Method: ${res.evidence.verification_method}).`
+          t('fb_http_verified', {
+            status: res.evidence.verification_status.toUpperCase(),
+            method: res.evidence.verification_method
+          }, state.lang)
         );
         await loadDashboard();
       } catch (err) {
-        showFeedback(`HTTP Source Verification Failed: ${err.message}`);
+        showFeedback(`Source Verification Failed: ${err.message}`);
       }
       return;
     }
@@ -1436,14 +1271,22 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'PATCH',
           body: JSON.stringify({
             verification_status: evStatus,
-            reviewer_notes: `Owner reviewed finding and set status to ${evStatus}.`
+            reviewer_notes: `Owner set status to ${evStatus}.`
           })
         });
-        showFeedback(`Evidence verification status updated to ${evStatus.toUpperCase()}.`);
+        showFeedback(t('fb_ev_reviewed', { status: evStatus.toUpperCase() }, state.lang));
         await loadDashboard();
       } catch (err) {
         showFeedback(`Verification Blocked: ${err.message}`);
       }
+    }
+  });
+
+  // Inputs and change listeners
+  document.body.addEventListener('input', (e) => {
+    if (e.target.id === 'help-search-input') {
+      state.helpSearch = e.target.value;
+      renderHelpCenter();
     }
   });
 
@@ -1457,7 +1300,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (e.target.id === 'select-active-product') {
       state.selectedProductId = e.target.value;
       await renderExecutionWorkspace(state.dashboard);
-      await renderGrowthWorkspace(state.dashboard);
     } else if (e.target.classList.contains('task-status-select')) {
       const taskId = e.target.dataset.taskId;
       const newStatus = e.target.value;
@@ -1469,20 +1311,16 @@ document.addEventListener('DOMContentLoaded', () => {
           actual_hours: newStatus === 'done' ? est : 0
         })
       });
-      showFeedback(`Task updated to ${newStatus.toUpperCase()} — real completion percentage recalculated.`);
+      showFeedback(t('fb_task_updated', { status: newStatus.toUpperCase() }, state.lang));
       await loadDashboard();
     }
   });
 
+  // Form submissions
   document.body.addEventListener('submit', async (e) => {
     if (e.target.id === 'form-new-opportunity') {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const dimInputs = {};
-      e.target.querySelectorAll('[data-dim]').forEach((inp) => {
-        dimInputs[inp.dataset.dim] = Number(inp.value);
-      });
-
       const evStatement = fd.get('initial_evidence_statement')?.trim();
       const evidence = evStatement
         ? [
@@ -1508,13 +1346,12 @@ document.addEventListener('DOMContentLoaded', () => {
           alternatives_summary: fd.get('alternatives_summary'),
           market_gaps: fd.get('market_gaps'),
           differentiation_potential: fd.get('differentiation_potential'),
-          estimated_dev_days: Number(fd.get('estimated_dev_days')),
-          operational_cost_monthly_usd: Number(fd.get('operational_cost_monthly_usd')),
+          estimated_dev_days: Number(fd.get('estimated_dev_days') || 14),
+          operational_cost_monthly_usd: Number(fd.get('operational_cost_monthly_usd') || 0),
           monetization_model: fd.get('monetization_model'),
           acquisition_strategy: fd.get('acquisition_strategy'),
           revenue_potential_notes: fd.get('revenue_potential_notes'),
           main_risks: fd.get('main_risks'),
-          dimension_inputs: dimInputs,
           evidence
         })
       });
@@ -1522,7 +1359,11 @@ document.addEventListener('DOMContentLoaded', () => {
       state.selectedOpportunityId = res.opportunity.id;
       e.target.reset();
       showFeedback(
-        `Evaluated "${res.opportunity.title}": Score ${res.opportunity.overall_score}/100 (${res.opportunity.recommendation})`
+        t('fb_opp_created', {
+          title: res.opportunity.title,
+          score: res.opportunity.overall_score,
+          rec: res.opportunity.recommendation
+        }, state.lang)
       );
       await loadDashboard();
     } else if (e.target.id === 'form-add-evidence') {
@@ -1546,7 +1387,11 @@ document.addEventListener('DOMContentLoaded', () => {
           })
         });
         showFeedback(
-          `Processed finding (Classified: ${res.evidence.evidence_tier.toUpperCase()} | Status: ${res.evidence.verification_status}). New Score: ${res.opportunity.overall_score}/100.`
+          t('fb_ev_added', {
+            tier: res.evidence.evidence_tier.toUpperCase(),
+            status: res.evidence.verification_status,
+            score: res.opportunity.overall_score
+          }, state.lang)
         );
         await loadDashboard();
       } catch (err) {
@@ -1564,7 +1409,12 @@ document.addEventListener('DOMContentLoaded', () => {
           fetch_live_public: fd.get('fetch_live_public') === 'true'
         })
       });
-      showFeedback(`Discovery Run "${res.run.query_topic}" finished with status: ${res.run.status.toUpperCase()}.`);
+      showFeedback(
+        t('fb_run_done', {
+          query: res.run.query_topic,
+          status: res.run.status.toUpperCase()
+        }, state.lang)
+      );
       await loadDashboard();
     } else if (e.target.id === 'form-add-competitor') {
       e.preventDefault();
@@ -1582,7 +1432,7 @@ document.addEventListener('DOMContentLoaded', () => {
           source_ref: 'Competitive Matrix Entry'
         })
       });
-      showFeedback('Added competitor to opportunity matrix.');
+      showFeedback(t('fb_comp_added', {}, state.lang));
       await loadDashboard();
     } else if (e.target.id === 'form-update-mvp-plan') {
       e.preventDefault();
@@ -1598,23 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
           buyer_validation_criteria: fd.get('buyer_validation_criteria')
         })
       });
-      showFeedback('Saved updated MVP Blueprint & Buyer Validation Criteria.');
-      await loadDashboard();
-    } else if (e.target.id === 'form-add-channel') {
-      e.preventDefault();
-      const prodId = e.target.dataset.prodId;
-      const fd = new FormData(e.target);
-      await fetchJson(`/api/products/${encodeURIComponent(prodId)}/growth`, {
-        method: 'POST',
-        body: JSON.stringify({
-          channel_name: fd.get('channel_name'),
-          channel_category: fd.get('channel_category'),
-          estimated_monthly_cost_usd: Number(fd.get('estimated_monthly_cost_usd')),
-          expected_return_rationale: fd.get('expected_return_rationale'),
-          execution_playbook: fd.get('execution_playbook')
-        })
-      });
-      showFeedback('Added distribution channel (paid channels automatically queued in Approval Gates).');
+      showFeedback(t('fb_mvp_saved', {}, state.lang));
       await loadDashboard();
     } else if (e.target.id === 'form-new-approval') {
       e.preventDefault();
@@ -1629,7 +1463,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
       });
       e.target.reset();
-      showFeedback('Registered new gated action in the Owner Approval Queue.');
+      showFeedback(t('fb_appr_created', {}, state.lang));
       await loadDashboard();
     } else if (e.target.id === 'form-add-capability') {
       e.preventDefault();
@@ -1645,7 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
       });
       e.target.reset();
-      showFeedback('Owner capability saved to profile.');
+      showFeedback(t('fb_cap_saved', {}, state.lang));
       await loadDashboard();
     } else if (e.target.id === 'form-add-intelligence') {
       e.preventDefault();
@@ -1661,7 +1495,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
       });
       e.target.reset();
-      showFeedback('Logged entry to Personal Business Intelligence Memory.');
+      showFeedback(t('fb_bi_saved', {}, state.lang));
       await loadDashboard();
     }
   });

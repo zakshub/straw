@@ -37,6 +37,8 @@
 | **Phase 8.1 Independent Evidence Audit & Commercial Validation** | Phase 8.1 | **Completed** | `PHASE8_1_INDEPENDENT_EVIDENCE_AUDIT.md` | Forensic SHA-256 & source audit, score reassessment, real buyer investigation (`CONDITIONAL HOLD` on build pending 10 buyer interviews) |
 | **STRAW V1.0 MVP Release (`M-V1.1`, `M-V1.2`, `M-V1.3`)** | V1.0 Release | **Completed & Verified (`100%`)** | `src/engines/`, `src/public/`, `tests/straw.test.js` | All 10 automated acceptance suites pass (`10/10`) |
 | **STRAW V1.0 Operational Smoke Test** | Post-V1.0 Smoke Test | **Completed & Verified (`100%`)** | `scripts/smoke-test-v1.js`, `STRAW_V1_OPERATIONAL_SMOKE_TEST.md` | Verified all 9 end-to-end workflows on live server (`http://127.0.0.1:4310`) with zero defects |
+| **Commercial Evidence Integrity Correction (5-Category Model)** | Post-V1.0 Hardening | **Completed & Verified (`100%`)** | `src/engines/opportunity-engine.js`, `src/engines/scoring-engine.js` | Published competitor pricing classified exclusively as competitor activity; genuine buyer commitments verified |
+| **STRAW UX Upgrade: Plain English, Urdu Localization, Typography & Help Center** | Usability & Localization | **Completed & Verified (`100%`)** | `src/public/`, `STRAW_UX_LANGUAGE_AUDIT.md`, `STRAW_CONTENT_STYLE_GUIDE.md`, `STRAW_LOCALIZATION_PLAN.md`, `STRAW_TYPOGRAPHY_GUIDE.md`, `STRAW_HELP_CENTER_CONTENT.md` | 11 automated test suites pass (`11/11`), live external connector tests pass, full bilingual English/Urdu with RTL and ExplainTerm component |
 
 ---
 

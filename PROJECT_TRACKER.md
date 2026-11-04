@@ -110,3 +110,15 @@
   8. [x] **Edit & Save MVP Plan:** Updated plan fields via `PATCH /api/products/:id` with SQLite persistence.
   9. [x] **Dossier Export:** Exported Markdown dossier with disclaimer, dual sub-scores, evidence table, and Section 7 MVP plan.
   10. [x] **Financial Governance:** Inspected pending approvals ledger; verified unauthorized paid API calls are blocked server-side with `MISSING_APPROVAL`.
+
+## Milestone 11: STRAW UX Upgrade — Plain English, Urdu Localization, Typography & Help Center
+- **Status:** Completed & Verified (`100%`)
+- **Deliverables:**
+  1. [x] **Language Architecture & Bidirectional Layout:** Bilingual English (`en`, LTR default) and Pakistani Urdu (`ur`, RTL) switching via persistent header switcher (`localStorage.getItem('straw_lang')`). Preserves all database structures, scoring weights, API values, and DOM hooks.
+  2. [x] **Plain English First:** Replaced dense venture-capital and engineering jargon with everyday human questions across all 4 core views without losing technical precision.
+  3. [x] **Reusable `ExplainTerm` Component:** Inline accessible trigger (`Understand in simple English` / `آسان الفاظ میں سمجھیں`) revealing simple explanation, concrete example, and technical calculation rule.
+  4. [x] **Urdu & Multiscript Typography:** Evaluated 29LT Zarid Sans AL and 29LT Bukra from 29LT. Implemented clean, horizontal-baseline modern Naskh/Sans typography with safe open-source/system fallbacks (`IBM Plex Sans Arabic`, `Noto Sans Arabic`, `Vazirmatn`, `Geeza Pro`, `Segoe UI`, `sans-serif`). Strictly prohibited Nastaliq and avoided bundling unlicensed proprietary binary font files.
+  5. [x] **Interactive Help Center & Getting Started Guide:** 13 complete bilingual guides covering first-time setup, STRAW purpose, 8-step workflow, discovery, scores, 5 evidence categories, commercial readiness stages, MVP planning, approval gates, FAQ, plain-language glossary, and honest roadmap (V1.0 vs. V1.5/V2.0/V3.0).
+  6. [x] **5 Comprehensive Documentation Manuals:** `STRAW_UX_LANGUAGE_AUDIT.md`, `STRAW_CONTENT_STYLE_GUIDE.md`, `STRAW_LOCALIZATION_PLAN.md`, `STRAW_HELP_CENTER_CONTENT.md`, and `STRAW_TYPOGRAPHY_GUIDE.md`.
+  7. [x] **Verification:** Added Suite 11 in `tests/straw.test.js`. All 11 test suites passed (`11/11`), live tests passed (`npm run test:live`), and operational smoke test passed (`node scripts/smoke-test-v1.js`).
+

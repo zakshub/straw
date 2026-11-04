@@ -1879,3 +1879,56 @@ test('10. Milestone M-V1.3 & Final STRAW V1.0 Acceptance Suite: 4-View Workspace
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test('11. STRAW UX Upgrade Suite: Plain English, Urdu Localization, Typography & Help Center', async () => {
+  const ctx = createStrawContext({ dbPath: ':memory:' });
+  const { server } = createAppServer(ctx);
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // 1. Verify HTML served correctly with bilingual elements and Help Center structure
+    const htmlRes = await fetch(`${baseUrl}/`);
+    assert.equal(htmlRes.status, 200);
+    const html = await htmlRes.text();
+
+    assert.ok(html.includes('id="lang-btn-en"'), 'English language button must exist');
+    assert.ok(html.includes('id="lang-btn-ur"'), 'Urdu language button must exist');
+    assert.ok(html.includes('id="help-nav-btn"'), 'Help & Guide header button must exist');
+    assert.ok(html.includes('id="tab-help"'), 'Help Center view panel (#tab-help) must exist');
+    assert.ok(html.includes('id="getting-started-container"'), 'Getting started guide container must exist');
+    assert.ok(html.includes('id="help-center-container"'), 'Help center container must exist');
+
+    // 2. Verify static JS and CSS serve successfully
+    const i18nRes = await fetch(`${baseUrl}/i18n.js`);
+    assert.equal(i18nRes.status, 200);
+    const i18nText = await i18nRes.text();
+    assert.ok(i18nText.includes('SUPPORTED_LANGUAGES'));
+    assert.ok(i18nText.includes('HELP_CENTER_SECTIONS'));
+    assert.ok(i18nText.includes('renderExplainTerm'));
+
+    const cssRes = await fetch(`${baseUrl}/styles.css`);
+    assert.equal(cssRes.status, 200);
+    const cssText = await cssRes.text();
+    assert.ok(cssText.includes('--font-sans-ur'), 'Urdu font variable must exist');
+    assert.ok(cssText.includes('29LT Zarid Sans AL'), '29LT Zarid Sans AL must be in font stack');
+    assert.ok(cssText.includes('29LT Bukra'), '29LT Bukra must be in font stack');
+    assert.ok(!cssText.toLowerCase().includes('nastaleeq'), 'Nastaleeq must not be used');
+    assert.ok(!cssText.toLowerCase().includes('nastaliq'), 'Nastaliq must not be used');
+    assert.ok(cssText.includes('html[dir="rtl"]'), 'RTL layout rules must exist in CSS');
+
+    // 3. Verify server API remains 100% deterministic and unaffected by UI localization
+    const dashboardRes = await fetch(`${baseUrl}/api/dashboard`);
+    assert.equal(dashboardRes.status, 200);
+    const dashboard = await dashboardRes.json();
+    assert.ok(dashboard.opportunities.length > 0);
+    const firstOpp = dashboard.opportunities[0];
+    assert.equal(typeof firstOpp.overall_score, 'number');
+    assert.equal(typeof firstOpp.commercial_readiness_score, 'number');
+    assert.equal(typeof firstOpp.technical_feasibility_score, 'number');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" dir="ltr" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>STRAW V1.0 — Evidence-Grounded Opportunity Discovery &amp; MVP Planning System</title>
+  <title>STRAW V1.0 — Smart Business Idea Finder, Proof Checker &amp; Product Planner</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -12,44 +12,65 @@
       <div class="brand-mark" aria-hidden="true">S//V1</div>
       <div>
         <h1 class="brand-title">STRAW V1.0</h1>
-        <p class="brand-subtitle">Evidence-Grounded Opportunity Discovery, Commercial Evaluation &amp; MVP Planning System</p>
+        <p class="brand-subtitle" id="brand-subtitle-text">Smart Business Idea Finder, Proof Checker &amp; Product Planner</p>
       </div>
     </div>
 
     <div class="header-status-strip" id="header-status-strip" aria-live="polite">
-      <span class="status-pill" id="pill-direction">Direction: Product Entrepreneurship</span>
-      <span class="status-pill status-pill-warn" id="pill-approvals">Pending Approval Gates: 0</span>
+      <span class="status-pill" id="pill-ai-mode">AI Mode: Safe Local Mode (Free)</span>
+      <span class="status-pill" id="pill-direction">Budget Rule: $0 Spent Without Your Approval</span>
+      <span class="status-pill status-pill-warn" id="pill-approvals">Waiting for Your Approval: 0</span>
     </div>
 
     <div class="appearance-controls">
+      <!-- Language Switcher: English | اردو -->
+      <div class="lang-switcher-cluster" role="group" aria-label="Language Switcher">
+        <button type="button" class="lang-btn active" id="lang-btn-en" data-set-lang="en">English</button>
+        <button type="button" class="lang-btn" id="lang-btn-ur" data-set-lang="ur">اردو</button>
+      </div>
+
       <button
         type="button"
         id="theme-toggle-btn"
         class="btn btn-secondary"
-        aria-label="Switch Appearance Mode (Light Drafting / Dark Slate)"
+        aria-label="Switch Appearance Mode (Light Paper / Dark Slate)"
       >
-        Appearance: Light Drafting
+        Theme: Light Paper (Switch to Dark)
+      </button>
+
+      <button
+        type="button"
+        id="help-nav-btn"
+        class="btn btn-primary"
+        data-goto-tab="help"
+        aria-label="Help Center &amp; Guide"
+      >
+        Help &amp; Guide
       </button>
     </div>
   </header>
 
   <nav class="workspace-nav" aria-label="STRAW V1.0 Core Workflow">
-    <button type="button" class="nav-tab active" data-tab="research">1. Discover &amp; Research</button>
-    <button type="button" class="nav-tab" data-tab="opportunities">2. Evaluate &amp; Compare</button>
-    <button type="button" class="nav-tab" data-tab="execution">3. Select &amp; Plan MVP</button>
-    <button type="button" class="nav-tab" data-tab="approvals">4. Approvals &amp; Capabilities</button>
+    <button type="button" class="nav-tab active" data-tab="research" id="tab-btn-research">1. Discover &amp; Research</button>
+    <button type="button" class="nav-tab" data-tab="opportunities" id="tab-btn-opportunities">2. Evaluate &amp; Compare</button>
+    <button type="button" class="nav-tab" data-tab="execution" id="tab-btn-execution">3. Select &amp; Plan MVP</button>
+    <button type="button" class="nav-tab" data-tab="approvals" id="tab-btn-approvals">4. Approvals &amp; Capabilities</button>
   </nav>
 
   <main class="workspace-main" id="main-content">
+    <div id="getting-started-container"></div>
     <div id="global-feedback" class="feedback-banner hidden" role="status" aria-live="polite"></div>
 
-    <!-- VIEW 1: DISCOVER & RESEARCH (DISCOVER -> RESEARCH) -->
+    <!-- VIEW 1: DISCOVER & RESEARCH (FIND BUSINESS IDEAS) -->
     <section id="tab-research" class="workspace-panel active" aria-labelledby="heading-research">
       <div class="section-header-bar">
         <div>
-          <h2 id="heading-research" class="section-title">1. Market Discovery, Public Source Connectors &amp; Evidence Verification</h2>
-          <p class="section-desc">
-            Collect real-world market findings from free public connectors, verify source excerpts with per-item 64-character SHA-256 content hashes, and classify every finding into <strong>Problem Existence</strong>, <strong>Market Demand</strong>, <strong>Competitor Activity</strong>, or <strong>Willingness to Pay</strong>.
+          <h2 id="heading-research" class="section-title">
+            1. Find Business Ideas &amp; Check Real Market Proof
+            <span id="explain-v1-heading"></span>
+          </h2>
+          <p class="section-desc" id="v1-desc-text">
+            Search free public websites for real customer problems, save verified links with digital fingerprints (SHA-256), and see which sources are free versus locked behind your approval.
           </p>
         </div>
       </div>
@@ -59,45 +80,51 @@
       <div class="split-grid-2col" style="margin-bottom: 18px;">
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Launch Free Public Market Discovery Run</h3>
+            <h3 id="v1-form-box-title">
+              Search Public Websites for Real Problems &amp; Ideas (Free by Default)
+              <span id="explain-v1-run"></span>
+            </h3>
           </div>
           <form id="form-discovery-run" class="structured-form">
             <div class="form-row-2">
               <div class="form-group">
-                <label for="run-query">Research Topic / Problem Query (Required)</label>
-                <input type="text" id="run-query" name="query_topic" required placeholder="e.g., accessibility form audit blocks" />
+                <label for="run-query" id="lbl-run-query">What problem or topic do you want to search? (Required)</label>
+                <input type="text" id="run-query" name="query_topic" required placeholder="e.g., accessible color contrast tool" />
               </div>
               <div class="form-group">
-                <label for="run-opp-select">Link to Opportunity (Optional)</label>
+                <label for="run-opp-select" id="lbl-run-opp">Connect to an Existing Idea (Optional)</label>
                 <select id="run-opp-select" name="opportunity_id">
-                  <option value="">Standalone Discovery Run</option>
+                  <option value="">Search Without Connecting to a Specific Idea</option>
                 </select>
               </div>
             </div>
             <div class="form-row-2">
               <div class="form-group">
-                <label for="run-source-select">Primary Research Source Adapter</label>
+                <label for="run-source-select" id="lbl-run-source">
+                  Where should STRAW search?
+                  <span id="explain-v1-source"></span>
+                </label>
                 <select id="run-source-select" name="source_id"></select>
               </div>
               <div class="form-group">
-                <label for="run-live-mode">Collection Mode</label>
+                <label for="run-live-mode" id="lbl-run-mode">Search Mode</label>
                 <select id="run-live-mode" name="fetch_live_public">
-                  <option value="false">Local / Attributed Ingestion Only (Offline Safe)</option>
-                  <option value="true">Query Live Public JSON API (Respects Rate Limits)</option>
+                  <option value="true" selected>Live Public Internet Search (Recommended)</option>
+                  <option value="false">Saved Local Baseline Only (Offline Safe)</option>
                 </select>
               </div>
             </div>
-            <button type="submit" class="btn btn-primary btn-small">Execute Discovery Run</button>
+            <button type="submit" class="btn btn-primary btn-small" id="btn-run-discovery">Search for Ideas &amp; Proof</button>
           </form>
 
           <hr class="structural-divider" />
-          <h4 class="sub-box-title">Recent Discovery Runs &amp; AI Synthesis History</h4>
+          <h4 class="sub-box-title" id="v1-runs-history-title">Recent Searches &amp; Plain-Language Summary</h4>
           <div id="research-runs-list"></div>
         </div>
 
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Registered Research Sources, Implementation Status &amp; Rate Limits</h3>
+            <h3 id="v1-sources-box-title">Connected Websites &amp; Search Sources (Free vs. Paid)</h3>
           </div>
           <div id="research-sources-table"></div>
         </div>
@@ -105,34 +132,40 @@
 
       <div class="ledger-box">
         <div class="box-header">
-          <h3>Central Evidence Library &amp; Four-Category Commercial Verification Audit</h3>
+          <h3 id="v1-library-box-title">
+            All Saved Proof &amp; Website Link Verification
+            <span id="explain-v1-evidence"></span>
+          </h3>
         </div>
         <div id="central-evidence-library-table"></div>
       </div>
     </section>
 
-    <!-- VIEW 2: EVALUATE & COMPARE (EVALUATE -> PRIORITIZE) -->
+    <!-- VIEW 2: EVALUATE & COMPARE (COMPARE & SCORE IDEAS) -->
     <section id="tab-opportunities" class="workspace-panel" aria-labelledby="heading-opportunities">
       <div class="section-header-bar">
         <div>
-          <h2 id="heading-opportunities" class="section-title">2. Opportunity Evaluation, Commercial Readiness &amp; Side-by-Side Comparison</h2>
-          <p class="section-desc">
-            Separates <strong>Commercial Readiness</strong> from <strong>Technical Feasibility</strong>. Problem existence and competitor activity never count as proof of willingness to pay. <em>Note: Scores are relative prioritization indices, not probabilities of commercial success.</em>
+          <h2 id="heading-opportunities" class="section-title">
+            2. Compare Business Ideas: How Ready to Sell vs. How Easy to Build
+            <span id="explain-v2-heading"></span>
+          </h2>
+          <p class="section-desc" id="v2-desc-text">
+            Separates <strong>How Ready Is This Idea to Sell?</strong> from <strong>How Difficult Is It to Build?</strong>. Problem existence and competitor activity never count as proof that customers will buy. <em>Note: Scores are comparison rankings, not guarantees of success.</em>
           </p>
         </div>
         <div class="filter-bar">
           <div class="field-inline">
-            <label for="filter-opp-status">Filter by Status</label>
+            <label for="filter-opp-status" id="lbl-filter-opp-status">Filter by Status</label>
             <select id="filter-opp-status">
               <option value="">All Statuses</option>
-              <option value="approved">Approved</option>
-              <option value="evaluating">Evaluating</option>
+              <option value="approved">Approved to Test</option>
+              <option value="evaluating">Still Checking Proof</option>
               <option value="discovered">Discovered</option>
-              <option value="rejected">Rejected</option>
+              <option value="rejected">Rejected / Paused</option>
             </select>
           </div>
           <div class="field-inline">
-            <label for="filter-opp-category">Filter by Category</label>
+            <label for="filter-opp-category" id="lbl-filter-opp-category">Filter by Category</label>
             <select id="filter-opp-category">
               <option value="">All 15 Categories</option>
             </select>
@@ -142,7 +175,7 @@
 
       <div class="ledger-box" style="margin-bottom: 18px;">
         <div class="box-header">
-          <h3>Ranked Opportunity Comparison Matrix (Commercial Readiness vs. Technical Feasibility)</h3>
+          <h3 id="v2-matrix-box-title">Side-by-Side Business Idea Comparison Table</h3>
         </div>
         <div id="overview-opportunities-table"></div>
       </div>
@@ -152,77 +185,83 @@
         <div class="dossier-sidebar">
           <div class="ledger-box">
             <div class="box-header">
-              <h3>Evaluated Opportunities</h3>
+              <h3 id="v2-sidebar-title">Select an Idea to Read Its Full Proof Report</h3>
             </div>
             <div id="opportunity-cards-list" class="dossier-list"></div>
           </div>
 
           <div class="ledger-box">
             <div class="box-header">
-              <h3>Quick-Log New Opportunity (4 Core Fields)</h3>
+              <h3 id="v2-intake-title">Add a New Business Idea (4 Simple Questions)</h3>
             </div>
+            <p class="dossier-item-meta" id="v2-intake-desc">Enter 4 basic facts to score a new idea. Open the optional section below if you want to add cost guesses or a website link right away.</p>
             <form id="form-new-opportunity" class="structured-form">
               <div class="form-group">
-                <label for="opp-title">1. Opportunity Title (Required)</label>
+                <label for="opp-title" id="lbl-opp-title">1. Idea Name (Required)</label>
                 <input type="text" id="opp-title" name="title" required placeholder="e.g., Accessibility Token Auditor for WooCommerce" />
               </div>
 
               <div class="form-group">
-                <label for="opp-category">2. Product Category (Required)</label>
+                <label for="opp-category" id="lbl-opp-category">2. Product Category (Required)</label>
                 <select id="opp-category" name="category" required></select>
               </div>
 
               <div class="form-group">
-                <label for="opp-problem">3. Problem Being Addressed (Required)</label>
+                <label for="opp-complexity" id="lbl-opp-complexity">3. How Difficult Is It to Build?</label>
+                <select id="opp-complexity" name="dev_complexity">
+                  <option value="low">Easy (Under 7 Days)</option>
+                  <option value="manageable" selected>Medium (7 to 14 Days)</option>
+                  <option value="moderate">Moderate (Multi-Workflow App)</option>
+                  <option value="high">Hard (Over 14 Days)</option>
+                  <option value="extreme">Extreme (Heavy R&amp;D)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="opp-problem" id="lbl-opp-problem">4. What Problem Does This Solve, and Who Has It? (Required)</label>
                 <textarea id="opp-problem" name="problem_statement" rows="2" required placeholder="What painful, recurring problem does the target user face?"></textarea>
               </div>
 
               <div class="form-group">
-                <label for="opp-audience">4. Target Customer Segment (Required)</label>
+                <label for="opp-audience" id="lbl-opp-audience">Who Is the Target Customer? (Required)</label>
                 <input type="text" id="opp-audience" name="target_audience" required placeholder="e.g., B2B SaaS UI designers &amp; agencies" />
               </div>
 
               <details class="advanced-assumptions-accordion" style="margin-bottom: 12px;">
-                <summary style="cursor: pointer; font-weight: 600; padding: 6px 0;">
-                  Optional: Advanced Commercial Assumptions, 11-Dimension Ratings &amp; Initial Evidence
+                <summary style="cursor: pointer; font-weight: 600; padding: 6px 0;" id="v2-accordion-title">
+                  Extra Details, Cost Guesses &amp; Optional Link (Click to Open if Needed)
                 </summary>
 
                 <div class="form-row-2" style="margin-top: 8px;">
                   <div class="form-group">
-                    <label for="opp-complexity">Development Complexity</label>
-                    <select id="opp-complexity" name="dev_complexity">
-                      <option value="low">Low (Templates / Static / Simple Utility)</option>
-                      <option value="manageable" selected>Manageable (AI-Assisted / WP / Standard Web)</option>
-                      <option value="moderate">Moderate (Multi-Workflow App)</option>
-                      <option value="high">High (Complex Backend Infrastructure)</option>
-                      <option value="extreme">Extreme (Heavy R&amp;D / Deep Systems)</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="opp-demand">Demand Summary (Hypothesis)</label>
+                    <label for="opp-demand">Demand Summary (Initial Hypothesis)</label>
                     <input type="text" id="opp-demand" name="demand_summary" value="Initial market hypothesis pending verified source collection" />
                   </div>
-                </div>
-
-                <div class="form-row-2">
                   <div class="form-group">
                     <label for="opp-competitors">Existing Competitors</label>
                     <input type="text" id="opp-competitors" name="competitors_summary" value="To be mapped during competitor research" />
                   </div>
+                </div>
+
+                <div class="form-row-2">
                   <div class="form-group">
                     <label for="opp-alternatives">Current Alternatives</label>
                     <input type="text" id="opp-alternatives" name="alternatives_summary" value="Manual spreadsheets, checklists, or ad-hoc scripts" />
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-gaps">Market Gaps</label>
+                    <input type="text" id="opp-gaps" name="market_gaps" value="Focused workflow automation with zero setup" />
                   </div>
                 </div>
 
                 <div class="form-row-2">
                   <div class="form-group">
-                    <label for="opp-gaps">Market Gaps</label>
-                    <input type="text" id="opp-gaps" name="market_gaps" value="Focused workflow automation with zero setup" />
-                  </div>
-                  <div class="form-group">
                     <label for="opp-diff">Differentiation Potential</label>
                     <input type="text" id="opp-diff" name="differentiation_potential" value="Superior UX clarity, speed, and specialized output" />
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-monetization">Pricing Hypothesis</label>
+                    <input type="text" id="opp-monetization" name="monetization_model" value="One-Time License ($49–$149)" />
                   </div>
                 </div>
 
@@ -236,68 +275,20 @@
                     <input type="number" id="opp-cost" name="operational_cost_monthly_usd" min="0" step="1" value="0" />
                   </div>
                   <div class="form-group">
-                    <label for="opp-monetization">Pricing Hypothesis</label>
-                    <input type="text" id="opp-monetization" name="monetization_model" value="One-Time License ($49–$149)" />
-                  </div>
-                </div>
-
-                <div class="form-row-2">
-                  <div class="form-group">
-                    <label for="opp-acquisition">Acquisition Strategy Hypothesis</label>
+                    <label for="opp-acquisition">Acquisition Strategy</label>
                     <input type="text" id="opp-acquisition" name="acquisition_strategy" value="Ecosystem directories + high-intent search utility" />
-                  </div>
-                  <div class="form-group">
-                    <label for="opp-revenue">Revenue Potential (Unverified Assumption)</label>
-                    <input type="text" id="opp-revenue" name="revenue_potential_notes" value="Unverified commercial assumption pending buyer smoke test" />
                   </div>
                 </div>
 
                 <div class="form-group">
-                  <label for="opp-risks">Main Risks</label>
-                  <input type="text" id="opp-risks" name="main_risks" value="Buyer willingness-to-pay vs free alternatives" />
+                  <label for="opp-revenue">Revenue Potential Notes (Unverified Commercial Assumption)</label>
+                  <input type="text" id="opp-revenue" name="revenue_potential_notes" value="Commercial validation required before setting revenue projections" />
                 </div>
 
-                <fieldset class="dimension-fieldset">
-                  <legend>11-Dimension Inputs (1–10; Demand &amp; Monetization are Evidence-Gated)</legend>
-                  <div class="form-row-3">
-                    <div class="form-group">
-                      <label for="dim-problem">Problem Severity (1–10)</label>
-                      <input type="number" id="dim-problem" data-dim="problem_severity" min="1" max="10" step="0.5" value="7.5" />
-                    </div>
-                    <div class="form-group">
-                      <label for="dim-demand">Raw Demand Rating (1–10)</label>
-                      <input type="number" id="dim-demand" data-dim="demand_evidence" min="1" max="10" step="0.5" value="7.0" />
-                    </div>
-                    <div class="form-group">
-                      <label for="dim-audience">Audience Access (1–10)</label>
-                      <input type="number" id="dim-audience" data-dim="audience_accessibility" min="1" max="10" step="0.5" value="8.0" />
-                    </div>
-                    <div class="form-group">
-                      <label for="dim-comp">Competition Gap (1–10)</label>
-                      <input type="number" id="dim-comp" data-dim="competition_intensity" min="1" max="10" step="0.5" value="7.0" />
-                    </div>
-                    <div class="form-group">
-                      <label for="dim-diff">Differentiation (1–10)</label>
-                      <input type="number" id="dim-diff" data-dim="differentiation" min="1" max="10" step="0.5" value="8.0" />
-                    </div>
-                    <div class="form-group">
-                      <label for="dim-feasibility">Dev Feasibility (1–10)</label>
-                      <input type="number" id="dim-feasibility" data-dim="development_feasibility" min="1" max="10" step="0.5" value="8.5" />
-                    </div>
-                    <div class="form-group">
-                      <label for="dim-invest">Low Initial Cost (1–10)</label>
-                      <input type="number" id="dim-invest" data-dim="initial_investment" min="1" max="10" step="0.5" value="9.5" />
-                    </div>
-                    <div class="form-group">
-                      <label for="dim-monetize">Monetization (1–10)</label>
-                      <input type="number" id="dim-monetize" data-dim="monetization_potential" min="1" max="10" step="0.5" value="7.5" />
-                    </div>
-                    <div class="form-group">
-                      <label for="dim-ttfr">Speed to Revenue (1–10)</label>
-                      <input type="number" id="dim-ttfr" data-dim="time_to_first_revenue" min="1" max="10" step="0.5" value="8.0" />
-                    </div>
-                  </div>
-                </fieldset>
+                <div class="form-group">
+                  <label for="opp-risks">Main Strategic &amp; Market Risks</label>
+                  <input type="text" id="opp-risks" name="main_risks" value="Incumbent extension add-ons and platform API changes" />
+                </div>
 
                 <fieldset class="dimension-fieldset">
                   <legend>Optional Initial Evidence Citation</legend>
@@ -322,7 +313,7 @@
                 </fieldset>
               </details>
 
-              <button type="submit" class="btn btn-primary">Evaluate &amp; Score Opportunity</button>
+              <button type="submit" class="btn btn-primary" id="btn-submit-new-opp">Score &amp; Save This Business Idea</button>
             </form>
           </div>
         </div>
@@ -334,17 +325,20 @@
       </div>
     </section>
 
-    <!-- VIEW 3: SELECT & PLAN MVP (SELECT -> PLAN) -->
+    <!-- VIEW 3: SELECT & PLAN MVP (PLAN FIRST PRODUCT) -->
     <section id="tab-execution" class="workspace-panel" aria-labelledby="heading-execution">
       <div class="section-header-bar">
         <div>
-          <h2 id="heading-execution" class="section-title">3. Selected Opportunity MVP Plan, Scope Boundaries &amp; Buyer Validation Criteria</h2>
-          <p class="section-desc">
-            Defines the concrete MVP concept for a selected opportunity: <strong>Must-Have V1 Features</strong>, <strong>Excluded Non-Goals</strong>, <strong>Pricing Hypotheses</strong>, <strong>Buyer Validation Criteria (Build / Pivot / Abandon)</strong>, and the 15-stage milestone roadmap.
+          <h2 id="heading-execution" class="section-title">
+            3. Plan Your First Simple Product (What to Build First &amp; How to Test Buyers)
+            <span id="explain-v3-heading"></span>
+          </h2>
+          <p class="section-desc" id="v3-desc-text">
+            Defines the concrete first product (MVP) for your selected idea: <strong>Essential Features</strong>, <strong>Skipped Non-Goals</strong>, <strong>Price Idea</strong>, <strong>Buyer Rules (Build / Pivot / Stop)</strong>, and a 15-step checklist.
           </p>
         </div>
         <div class="field-inline">
-          <label for="select-active-product">Select Planned MVP Product</label>
+          <label for="select-active-product" id="lbl-select-active-product">Choose Planned Product</label>
           <select id="select-active-product"></select>
         </div>
       </div>
@@ -352,13 +346,16 @@
       <div id="product-execution-container"></div>
     </section>
 
-    <!-- VIEW 4: APPROVALS & CAPABILITIES (GOVERNANCE & CAPABILITY PROFILE) -->
+    <!-- VIEW 4: APPROVALS & CAPABILITIES (APPROVALS & MY SKILLS) -->
     <section id="tab-approvals" class="workspace-panel" aria-labelledby="heading-approvals">
       <div class="section-header-bar">
         <div>
-          <h2 id="heading-approvals" class="section-title">4. Human Approval Gates, Financial Controls &amp; Owner Capability Profile</h2>
-          <p class="section-desc">
-            Enforces mandatory owner approval before spending money, calling paid APIs, publishing content, or launching products, alongside Zak's 10-skill capability matrix and institutional decision memory.
+          <h2 id="heading-approvals" class="section-title">
+            4. Your Spending Approvals, Safety Controls &amp; Personal Skills
+            <span id="explain-v4-heading"></span>
+          </h2>
+          <p class="section-desc" id="v4-desc-text">
+            Enforces mandatory owner approval before spending money, calling paid APIs, publishing content, or launching products, alongside your personal capability matrix and business decision memory.
           </p>
         </div>
       </div>
@@ -366,23 +363,26 @@
       <div class="split-grid-2col" style="margin-bottom: 18px;">
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Mandatory Human Approval Queue &amp; Financial Lock Ledger</h3>
+            <h3 id="v4-queue-title">
+              Decisions Waiting for Your Permission (Financial &amp; Public Safety Lock)
+              <span id="explain-v4-gate"></span>
+            </h3>
           </div>
           <div id="approvals-queue-list"></div>
         </div>
 
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Register New Gated Commitment Request</h3>
+            <h3 id="v4-new-appr-title">Ask Permission for a New Expense or Public Action</h3>
           </div>
           <form id="form-new-approval" class="structured-form">
             <div class="form-group">
-              <label for="appr-title">Commitment / Action Title (Required)</label>
-              <input type="text" id="appr-title" name="title" required placeholder="e.g., Purchase Domain &amp; Production Hosting for Sentinel A11y" />
+              <label for="appr-title" id="lbl-appr-title">Action Title (Required)</label>
+              <input type="text" id="appr-title" name="title" required placeholder="e.g., Purchase Domain &amp; Hosting for Sentinel A11y" />
             </div>
             <div class="form-row-2">
               <div class="form-group">
-                <label for="appr-category">Gated Action Category</label>
+                <label for="appr-category" id="lbl-appr-category">Action Category</label>
                 <select id="appr-category" name="action_category" required>
                   <option value="spend_money">Spending Money</option>
                   <option value="purchase_service">Purchasing Services / Subscriptions</option>
@@ -395,15 +395,15 @@
                 </select>
               </div>
               <div class="form-group">
-                <label for="appr-cost">Financial Impact (USD)</label>
+                <label for="appr-cost" id="lbl-appr-cost">Financial Impact (USD)</label>
                 <input type="number" id="appr-cost" name="financial_commitment_usd" min="0" step="1" value="15" required />
               </div>
             </div>
             <div class="form-group">
-              <label for="appr-desc">Justification &amp; Risk Notes (Required)</label>
-              <textarea id="appr-desc" name="description" rows="3" required placeholder="Explain expected ROI, reversibility, and why this commitment is justified now."></textarea>
+              <label for="appr-desc" id="lbl-appr-desc">Justification &amp; Risk Notes (Required)</label>
+              <textarea id="appr-desc" name="description" rows="3" required placeholder="Explain expected return and why this commitment is justified now."></textarea>
             </div>
-            <button type="submit" class="btn btn-primary">Submit to Owner Approval Queue</button>
+            <button type="submit" class="btn btn-primary" id="btn-submit-approval">Add Request to My Approval List</button>
           </form>
         </div>
       </div>
@@ -411,17 +411,20 @@
       <div class="split-grid-2col">
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Owner Capability Engine &amp; Execution Profile</h3>
+            <h3 id="v4-cap-title">
+              Your Personal Skills &amp; Strengths (What You Can Build Easily)
+              <span id="explain-v4-cap"></span>
+            </h3>
           </div>
           <div id="owner-profile-card"></div>
           <div id="capabilities-matrix-table"></div>
 
           <hr class="structural-divider" />
-          <h4 class="sub-box-title">Add or Update Owner Capability</h4>
+          <h4 class="sub-box-title" id="v4-add-cap-title">Add or Update One of Your Skills</h4>
           <form id="form-add-capability" class="structured-form">
             <div class="form-row-2">
               <div class="form-group">
-                <label for="cap-name">Capability Name (Required)</label>
+                <label for="cap-name">Skill Name (Required)</label>
                 <input type="text" id="cap-name" name="name" required placeholder="e.g., Astro Static Site Architecture" />
               </div>
               <div class="form-group">
@@ -449,22 +452,22 @@
               <label for="cap-notes">Application Notes</label>
               <input type="text" id="cap-notes" name="notes" placeholder="How this skill accelerates digital product builds" required />
             </div>
-            <button type="submit" class="btn btn-secondary">Save Capability Record</button>
+            <button type="submit" class="btn btn-secondary" id="btn-submit-cap">Save My Skill</button>
           </form>
         </div>
 
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Personal Business Intelligence &amp; Rejection Memory Ledger</h3>
+            <h3 id="v4-bi-title">Saved Business Lessons, Market Notes &amp; Past Decisions</h3>
           </div>
           <div id="intelligence-memory-list"></div>
 
           <hr class="structural-divider" />
-          <h4 class="sub-box-title">Record Lesson Learned / Market Observation</h4>
+          <h4 class="sub-box-title" id="v4-add-bi-title">Save a New Lesson Learned or Market Note</h4>
           <form id="form-add-intelligence" class="structured-form">
             <div class="form-row-2">
               <div class="form-group">
-                <label for="bi-type">Memory Entry Type</label>
+                <label for="bi-type">Entry Type</label>
                 <select id="bi-type" name="entry_type">
                   <option value="market_observation">Market Observation</option>
                   <option value="research_finding">Research Finding</option>
@@ -475,29 +478,42 @@
               <div class="form-group">
                 <label for="bi-tier">Evidence Tier</label>
                 <select id="bi-tier" name="evidence_tier">
-                  <option value="verified_evidence">Verified Evidence</option>
-                  <option value="practitioner_observation" selected>Practitioner Observation</option>
-                  <option value="estimate">Estimate</option>
-                  <option value="assumption">Assumption</option>
+                  <option value="verified_evidence">Verified Web Proof</option>
+                  <option value="practitioner_observation" selected>Personal Work Observation</option>
+                  <option value="estimate">Rough Estimate</option>
+                  <option value="assumption">Unproven Guess</option>
                 </select>
               </div>
             </div>
             <div class="form-group">
-              <label for="bi-title">Observation / Decision Title (Required)</label>
+              <label for="bi-title">Title (Required)</label>
               <input type="text" id="bi-title" name="title" required placeholder="e.g., Figma Community Free-to-Paid Conversion Pattern" />
             </div>
             <div class="form-group">
-              <label for="bi-summary">Finding Summary (Required)</label>
+              <label for="bi-summary">Summary (Required)</label>
               <textarea id="bi-summary" name="summary" rows="2" required placeholder="Record the specific observation or decision context."></textarea>
             </div>
             <div class="form-group">
-              <label for="bi-implication">Future Recommendation Implication (Required)</label>
-              <input type="text" id="bi-implication" name="future_implication" required placeholder="How STRAW should adjust future product recommendations" />
+              <label for="bi-implication">Future Implication (Required)</label>
+              <input type="text" id="bi-implication" name="future_implication" required placeholder="How STRAW should adjust future recommendations" />
             </div>
-            <button type="submit" class="btn btn-secondary">Log Business Intelligence Record</button>
+            <button type="submit" class="btn btn-secondary" id="btn-submit-bi">Save Lesson to Memory</button>
           </form>
         </div>
       </div>
+    </section>
+
+    <!-- VIEW 5: HELP CENTER & KNOWLEDGE BASE (HELP & GUIDE) -->
+    <section id="tab-help" class="workspace-panel" aria-labelledby="heading-help">
+      <div class="section-header-bar">
+        <div>
+          <h2 id="heading-help" class="section-title">5. Help Center, Plain-English Guide &amp; Frequently Asked Questions</h2>
+          <p class="section-desc" id="v5-desc-text">
+            Everything you need to understand STRAW in simple everyday language—how ideas are found, how scores work, why competitor pricing is not buyer proof, and how to plan your first product.
+          </p>
+        </div>
+      </div>
+      <div id="help-center-container"></div>
     </section>
   </main>
 
