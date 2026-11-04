@@ -18,24 +18,24 @@
 
 ---
 
-## 2. Current Implementation Status (Phases 0–8.1 Complete & Verified)
+## 2. Current Implementation Status (STRAW V1.0 MVP Complete & Verified — `100%`)
 
 | Module / Subsystem | Phase | Status | Implementation File | Verification |
 | :--- | :--- | :--- | :--- | :--- |
-| **SQLite Storage & 15-Table Schema** | Phase 1–7.2 | **Operational** | `src/db/database.js`, `src/db/seed.js` | Verified via `npm test` |
-| **Owner Profile & Capability Engine** | Phase 1 | **Operational** | `src/engines/capability-engine.js` | Verified via `npm test` |
-| **Opportunity Discovery, Competitor Matrix, Simulator & Markdown Export** | Phase 1–2 | **Operational** | `src/engines/opportunity-engine.js` | Verified via `npm test` |
-| **Transparent 11-Dimension Scoring Engine** | Phase 1–7.1 | **Operational** | `src/engines/scoring-engine.js` | Verified via `npm test` |
-| **15-Stage Product Execution & Dependency Diagnostics** | Phase 1–3 | **Operational** | `src/engines/execution-engine.js` | Verified via `npm test` |
-| **Growth, Search Clusters, Monetization & Unit Economics** | Phase 1–4 | **Operational** | `src/engines/growth-monetization-engine.js` | Verified via `npm test` |
-| **Human Approval & Single-Use Scoped Financial Authorization Verifier** | Phase 1, 7.1 & 7.2 | **Operational** | `src/engines/approval-engine.js` | Verified via `npm test` |
-| **Personal Business Intelligence & Proactive Portfolio Synthesizer** | Phase 1–5 | **Operational** | `src/engines/intelligence-engine.js` | Verified via `npm test` |
-| **SSRF-Hardened Research, 64-Char SHA-256 Content Verifier & Capability Matrix** | Phase 7, 7.1 & 7.2 | **Operational** | `src/engines/research-engine.js`, `scripts/run-live-tests.js` | `npm test` (offline) + `npm run test:live` |
-| **Replaceable AI Orchestration Layer** | Phase 1–7 | **Operational** | `src/engines/ai-orchestrator.js` | Verified via `npm test` |
-| **Sentinel Light/Dark Business Workspace UI & Hardened Server** | Phase 1–7.2 | **Operational** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |
+| **SQLite Storage, 15-Table Schema & Legacy Batch-Hash Repair** | Phase 1–V1.3 | **Operational (V1.0)** | `src/db/database.js`, `src/db/seed.js` | Verified via `npm test` (10 suites) |
+| **Owner Profile & Capability Engine** | Phase 1 | **Operational (V1.0)** | `src/engines/capability-engine.js` | Verified via `npm test` |
+| **Opportunity Discovery, 4-Way Evidence Dossier & Markdown Export** | Phase 1–V1.2 | **Operational (V1.0)** | `src/engines/opportunity-engine.js` | Verified via `npm test` |
+| **Dual Commercial Readiness vs. Technical Feasibility Scoring Engine** | Phase 1–V1.2 | **Operational (V1.0)** | `src/engines/scoring-engine.js` | Verified via `npm test` |
+| **Selected Opportunity MVP Blueprint & 15-Stage Execution Engine** | Phase 1–V1.3 | **Operational (V1.0)** | `src/engines/execution-engine.js` | Verified via `npm test` |
+| **Growth, Search Clusters, Monetization & Unit Economics (Deferred to V3.0 UI)** | Phase 1–4 | **Backend Preserved** | `src/engines/growth-monetization-engine.js` | Verified via `npm test` |
+| **Human Approval & Single-Use Scoped Financial Authorization Verifier** | Phase 1, 7.1 & 7.2 | **Operational (V1.0)** | `src/engines/approval-engine.js` | Verified via `npm test` |
+| **Personal Business Intelligence & Proactive Portfolio Synthesizer** | Phase 1–5 | **Operational (V1.0)** | `src/engines/intelligence-engine.js` | Verified via `npm test` |
+| **SSRF-Hardened Research, Per-Item 64-Char SHA-256 & 4-Category Classifier** | Phase 7–V1.1 | **Operational (V1.0)** | `src/engines/research-engine.js`, `scripts/run-live-tests.js` | `npm test` (offline) + `npm run test:live` |
+| **Replaceable AI Orchestration Layer** | Phase 1–7 | **Operational (V1.0)** | `src/engines/ai-orchestrator.js` | Verified via `npm test` |
+| **Consolidated 4-View V1.0 Workspace UI & Hardened Server** | Phase 1–V1.3 | **Operational (V1.0)** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |
 | **Phase 8 Real Market Discovery Experiment & Dossier Report** | Phase 8 | **Completed** | `scripts/run-phase8-experiment.js`, `MARKET_DISCOVERY_REPORT_PHASE8.md` | 11 opportunities evaluated (9 qualified, 1 held, 1 rejected) |
 | **Phase 8.1 Independent Evidence Audit & Commercial Validation** | Phase 8.1 | **Completed** | `PHASE8_1_INDEPENDENT_EVIDENCE_AUDIT.md` | Forensic SHA-256 & source audit, score reassessment, real buyer investigation (`CONDITIONAL HOLD` on build pending 10 buyer interviews) |
-| **STRAW V1.0 MVP Consolidation & Versioned Release Blueprint** | Strategy / V1.0 Plan | **82.0% Verified (`11.5h` Remaining)** | `STRAW_MVP_PRODUCT_BLUEPRINT.md`, `STRAW_VERSION_ROADMAP.md`, `STRAW_V1_ACCEPTANCE_CRITERIA.md`, `STRAW_CURRENT_CAPABILITY_AUDIT.md` | Defines V1.0 (`DISCOVER -> PLAN`), defers V1.5/V2.0/V3.0 scope, and maps 3 final milestones (`M-V1.1` to `M-V1.3`) |
+| **STRAW V1.0 MVP Release (`M-V1.1`, `M-V1.2`, `M-V1.3`)** | V1.0 Release | **Completed & Verified (`100%`)** | `src/engines/`, `src/public/`, `tests/straw.test.js` | All 10 automated acceptance suites pass (`10/10`) |
 
 ---
 

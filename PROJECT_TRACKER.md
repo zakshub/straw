@@ -71,9 +71,27 @@
   4. [x] **M8.1.4 — Real Buyer Investigation & Commercial Validation Protocol:** Investigated real buyer behavior across HN, WordPress.org, and GitHub; decoupled `Sentinel A11y` and `ContrastPair OKLCH`; replaced vanity validation metrics with a 4-step owner-gated buyer conversation & paid pilot protocol in `PHASE8_1_INDEPENDENT_EVIDENCE_AUDIT.md`.
 
 ## Milestone 8: STRAW V1.0 MVP Definition & Versioned Release Blueprint
-- **Status:** Blueprint Completed (`100%` of Planning Task); V1.0 Code Readiness at **`82.0%`** (`11.5h` Remaining Across `M-V1.1`–`M-V1.3`)
+- **Status:** Completed & Pushed (`32a36cf`)
 - **Deliverables Created:**
   1. [x] [`STRAW_CURRENT_CAPABILITY_AUDIT.md`](./STRAW_CURRENT_CAPABILITY_AUDIT.md) — Classified every feature across the repository (`A` through `E`), identified duplicated functionality, and triaged Phase 8.1 technical defects.
   2. [x] [`STRAW_MVP_PRODUCT_BLUEPRINT.md`](./STRAW_MVP_PRODUCT_BLUEPRINT.md) — Defined the focused V1.0 workflow (`DISCOVER -> RESEARCH -> EVALUATE -> PRIORITIZE -> SELECT -> PLAN`), separated V1.0 vs. deferred features, streamlined the 4-view non-technical owner journey, and mapped the `11.5h` completion plan (`M-V1.1`, `M-V1.2`, `M-V1.3`).
   3. [x] [`STRAW_VERSION_ROADMAP.md`](./STRAW_VERSION_ROADMAP.md) — Defined self-contained releases for `V1.0` (Opportunity Intelligence), `V1.5` (Commercial Validation), `V2.0` (Product Execution), and `V3.0` (Growth & Business Automation).
   4. [x] [`STRAW_V1_ACCEPTANCE_CRITERIA.md`](./STRAW_V1_ACCEPTANCE_CRITERIA.md) — Established 10 objective acceptance criteria for calling STRAW V1.0 complete without confusing software functionality with commercial buyer validation.
+
+## Milestone 9: STRAW V1.0 MVP Implementation (`M-V1.1`, `M-V1.2`, `M-V1.3`)
+- **Status:** Completed, Verified & Pushed (`100%`)
+- **Completed Milestones:**
+  1. [x] **M-V1.1 — Evidence Integrity (`62d1104`, 100%):**
+     - Fixed per-item 64-character SHA-256 `source_content_hash` attribution in `collectFromGitHubPublicApi` and `collectFromWordPressPluginApi` (plus idempotent migration repair in `src/db/database.js`).
+     - Fixed trailing-slash preservation in `extractValidPublicUrl()` so directory URLs (`/TR/WCAG22/`, `/plugins/slug/`) resolve without 301 redirect loops.
+     - Fixed `<script type="application/ld+json">` description extraction in `normalizeTextForVerification()`.
+     - Implemented 4-way commercial evidence classification (`problem_existence`, `market_demand`, `competitor_activity`, `willingness_to_pay`).
+  2. [x] **M-V1.2 — Commercial Evaluation (`d7732cb`, 100%):**
+     - Separated `commercial_readiness_score` (`0–100`) from `technical_feasibility_score` (`0–100`) in `src/engines/scoring-engine.js`.
+     - Prevented `problem_existence` and `competitor_activity` from unlocking high demand or monetization scores when `verified_willingness_to_pay_count === 0`.
+     - Upgraded `exportOpportunityDossierMarkdown()` in `src/engines/opportunity-engine.js` with explicit score disclaimers (`NOT a probability of commercial success`), 4-category evidence tables, and `[UNVERIFIED COMMERCIAL ASSUMPTION]` labels.
+  3. [x] **M-V1.3 — MVP Workspace (`100%`):**
+     - Consolidated 7 navigation tabs into 4 clear V1 views (`1. Discover & Research`, `2. Evaluate & Compare`, `3. Select & Plan MVP`, `4. Approvals & Capabilities`) in `src/public/index.html` and `src/public/app.js`.
+     - Streamlined opportunity creation to 4 core fields visible by default with optional advanced assumptions collapsed inside `<details class="advanced-assumptions-accordion">`.
+     - Upgraded the Selected Opportunity MVP Planning workflow (`ExecutionEngine.promoteOpportunityToProduct`, `ExecutionEngine.updateMvpPlan`, `PATCH /api/products/:id`) to include `target_audience`, `mvp_must_have_features`, `mvp_excluded_scope`, `pricing_hypothesis`, and `buyer_validation_criteria` (`BUILD IF / PIVOT IF / ABANDON IF`).
+     - Added automated Test Suites #8, #9, and #10 in `tests/straw.test.js` (`10/10` suites passing).

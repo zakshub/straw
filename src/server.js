@@ -340,6 +340,12 @@ export function createAppServer(customContext) {
         if (!product) return sendJson(res, 404, { error: 'Product not found' });
         return sendJson(res, 200, { product });
       }
+      if (prodMatch && method === 'PATCH') {
+        const prodId = decodeURIComponent(prodMatch[1]);
+        const body = await readJsonBody(req);
+        const product = ctx.executionEngine.updateMvpPlan(prodId, body);
+        return sendJson(res, 200, { product });
+      }
 
       const addTaskMatch = pathname.match(/^\/api\/products\/([^/]+)\/tasks$/);
       if (addTaskMatch && method === 'POST') {

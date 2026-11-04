@@ -351,6 +351,13 @@ export function runMigrations(db) {
   // Milestone M-V1.1: Commercial evidence category & legacy batch-hash repair
   ensureColumn(db, 'market_evidence', 'evidence_category', "TEXT NOT NULL DEFAULT 'market_demand'");
 
+  // Milestone M-V1.3: Selected Opportunity MVP Planning fields on products
+  ensureColumn(db, 'products', 'target_audience', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'products', 'mvp_must_have_features', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'products', 'mvp_excluded_scope', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'products', 'pricing_hypothesis', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'products', 'buyer_validation_criteria', "TEXT NOT NULL DEFAULT ''");
+
   const dupHashGroups = db
     .prepare(
       `SELECT source_content_hash, COUNT(DISTINCT source_url) AS distinct_urls

@@ -1642,3 +1642,86 @@ test('9. Milestone M-V1.2 — Commercial Evaluation: Commercial readiness vs tec
     `Commercial readiness (${hydratedWithWtp.commercial_readiness_score}) should unlock above 80 once WTP is verified`
   );
 });
+
+test('10. Milestone M-V1.3 & Final STRAW V1.0 Acceptance Suite: 4-View Workspace consolidation, streamlined intake, MVP plan blueprint & buyer validation criteria', async () => {
+  const ctx = createStrawContext({ dbPath: ':memory:' });
+  const { server } = createAppServer(ctx);
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // 1. Verify UI Workspace consolidates 7 tabs into 4 clear V1 views
+    const htmlRes = await fetch(`${baseUrl}/`);
+    assert.equal(htmlRes.status, 200);
+    const htmlText = await htmlRes.text();
+
+    const navTabMatches = [...htmlText.matchAll(/<button[^>]+class="nav-tab[^"]*"[^>]*>([\s\S]*?)<\/button>/g)].map(
+      (m) => m[1].trim()
+    );
+    assert.equal(navTabMatches.length, 4, 'Primary navigation must have exactly 4 consolidated V1 views');
+    assert.deepEqual(navTabMatches, [
+      '1. Discover &amp; Research',
+      '2. Evaluate &amp; Compare',
+      '3. Select &amp; Plan MVP',
+      '4. Approvals &amp; Capabilities'
+    ]);
+    assert.ok(!htmlText.includes('data-tab="growth"'), 'Premature Growth & Monetization tab must be hidden in V1');
+    assert.ok(
+      htmlText.includes('class="advanced-assumptions-accordion"'),
+      'Opportunity creation form must place advanced assumptions inside a collapsible accordion'
+    );
+
+    // 2. Promote an opportunity to an MVP Plan and verify all M-V1.3 MVP fields are generated
+    const promoteRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/promote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    assert.equal(promoteRes.status, 201);
+    const { product } = await promoteRes.json();
+
+    assert.ok(product.target_audience.length > 10);
+    assert.ok(product.mvp_must_have_features.length > 20, 'Must include Must-Have V1 Features');
+    assert.ok(product.mvp_excluded_scope.includes('Excluded from V1'), 'Must include Excluded Non-Goals');
+    assert.ok(product.pricing_hypothesis.includes('[UNVERIFIED PRICING HYPOTHESIS]'), 'Must include Pricing Hypothesis');
+    assert.ok(
+      product.buyer_validation_criteria.includes('BUILD IF:') &&
+        product.buyer_validation_criteria.includes('PIVOT IF:') &&
+        product.buyer_validation_criteria.includes('ABANDON IF:'),
+      'Must include explicit Build / Pivot / Abandon buyer validation criteria'
+    );
+
+    // 3. Update the MVP Plan via PATCH /api/products/:id and verify persistence
+    const patchRes = await fetch(`${baseUrl}/api/products/${encodeURIComponent(product.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_audience: 'Design system engineers at mid-market SaaS teams (5-50 designers)',
+        mvp_must_have_features: '1. Paste CSS/JSON tokens. 2. Compute OKLCH Light/Dark contrast matrix. 3. Export WCAG 2.2 remediation diff.',
+        mvp_excluded_scope: 'No Figma plugin sync in V1, no cloud user accounts, no team billing dashboard.',
+        pricing_hypothesis: '$39 one-time individual CLI/Browser Pro license (unverified until 5 pre-orders).',
+        buyer_validation_criteria: 'BUILD IF: >= 5 paid pre-orders at $39 within 14 days. PIVOT IF: Users demand CI/CD GitHub Action instead. ABANDON IF: < 2 pre-orders.'
+      })
+    });
+    assert.equal(patchRes.status, 200);
+    const { product: updatedProduct } = await patchRes.json();
+    assert.equal(updatedProduct.target_audience, 'Design system engineers at mid-market SaaS teams (5-50 designers)');
+    assert.ok(updatedProduct.mvp_must_have_features.includes('Compute OKLCH Light/Dark contrast matrix'));
+    assert.ok(updatedProduct.mvp_excluded_scope.includes('No Figma plugin sync in V1'));
+    assert.ok(updatedProduct.pricing_hypothesis.includes('$39 one-time'));
+    assert.ok(updatedProduct.buyer_validation_criteria.includes('>= 5 paid pre-orders'));
+
+    // 4. Verify exported Markdown Dossier includes Section 7 (Selected Opportunity MVP Plan)
+    const expRes = await fetch(`${baseUrl}/api/opportunities/opp-ux-flow-simulator/export?format=markdown`);
+    assert.equal(expRes.status, 200);
+    const expMd = await expRes.text();
+    assert.ok(expMd.includes('## 7. Selected Opportunity MVP Plan'));
+    assert.ok(expMd.includes('Compute OKLCH Light/Dark contrast matrix'));
+    assert.ok(expMd.includes('No Figma plugin sync in V1'));
+    assert.ok(expMd.includes('>= 5 paid pre-orders'));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>STRAW — Personal AI Business Operating System</title>
+  <title>STRAW V1.0 — Evidence-Grounded Opportunity Discovery &amp; MVP Planning System</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <header class="top-command-bar" role="banner">
     <div class="brand-cluster">
-      <div class="brand-mark" aria-hidden="true">S//OS</div>
+      <div class="brand-mark" aria-hidden="true">S//V1</div>
       <div>
-        <h1 class="brand-title">STRAW</h1>
-        <p class="brand-subtitle">Personal Business Opportunity Discovery, Evaluation &amp; Execution System</p>
+        <h1 class="brand-title">STRAW V1.0</h1>
+        <p class="brand-subtitle">Evidence-Grounded Opportunity Discovery, Commercial Evaluation &amp; MVP Planning System</p>
       </div>
     </div>
 
     <div class="header-status-strip" id="header-status-strip" aria-live="polite">
       <span class="status-pill" id="pill-direction">Direction: Product Entrepreneurship</span>
-      <span class="status-pill status-pill-warn" id="pill-approvals">Pending Gates: 0</span>
+      <span class="status-pill status-pill-warn" id="pill-approvals">Pending Approval Gates: 0</span>
     </div>
 
     <div class="appearance-controls">
@@ -33,280 +33,33 @@
     </div>
   </header>
 
-  <nav class="workspace-nav" aria-label="Primary Workspace Modules">
-    <button type="button" class="nav-tab active" data-tab="overview">1. Command Ledger</button>
-    <button type="button" class="nav-tab" data-tab="opportunities">2. Opportunity &amp; Scoring Engine</button>
-    <button type="button" class="nav-tab" data-tab="research">3. Research &amp; Evidence Engine</button>
-    <button type="button" class="nav-tab" data-tab="execution">4. Product Execution (15-Stage)</button>
-    <button type="button" class="nav-tab" data-tab="growth">5. Growth &amp; Monetization</button>
-    <button type="button" class="nav-tab" data-tab="approvals">6. Approval &amp; Financial Gates</button>
-    <button type="button" class="nav-tab" data-tab="capabilities">7. Capabilities &amp; Business Memory</button>
+  <nav class="workspace-nav" aria-label="STRAW V1.0 Core Workflow">
+    <button type="button" class="nav-tab active" data-tab="research">1. Discover &amp; Research</button>
+    <button type="button" class="nav-tab" data-tab="opportunities">2. Evaluate &amp; Compare</button>
+    <button type="button" class="nav-tab" data-tab="execution">3. Select &amp; Plan MVP</button>
+    <button type="button" class="nav-tab" data-tab="approvals">4. Approvals &amp; Capabilities</button>
   </nav>
 
   <main class="workspace-main" id="main-content">
     <div id="global-feedback" class="feedback-banner hidden" role="status" aria-live="polite"></div>
 
-    <!-- WORKSPACE 1: COMMAND LEDGER OVERVIEW -->
-    <section id="tab-overview" class="workspace-panel active" aria-labelledby="heading-overview">
+    <!-- VIEW 1: DISCOVER & RESEARCH (DISCOVER -> RESEARCH) -->
+    <section id="tab-research" class="workspace-panel active" aria-labelledby="heading-research">
       <div class="section-header-bar">
         <div>
-          <h2 id="heading-overview" class="section-title">Executive Business Ledger &amp; Priority Queue</h2>
+          <h2 id="heading-research" class="section-title">1. Market Discovery, Public Source Connectors &amp; Evidence Verification</h2>
           <p class="section-desc">
-            Real-time operational snapshot grounded in verified market evidence, actual task completion, and mandatory owner approval checkpoints.
+            Collect real-world market findings from free public connectors, verify source excerpts with per-item 64-character SHA-256 content hashes, and classify every finding into <strong>Problem Existence</strong>, <strong>Market Demand</strong>, <strong>Competitor Activity</strong>, or <strong>Willingness to Pay</strong>.
           </p>
         </div>
       </div>
 
       <div class="kpi-strip" id="overview-kpi-strip"></div>
 
-      <div class="split-grid-2col">
-        <div class="ledger-box">
-          <div class="box-header">
-            <h3>Ranked Opportunity Pipeline (11-Dimension Model)</h3>
-            <button type="button" class="btn btn-small" data-goto-tab="opportunities">Open Opportunity Workspace</button>
-          </div>
-          <div id="overview-opportunities-table"></div>
-        </div>
-
-        <div class="ledger-box">
-          <div class="box-header">
-            <h3>Active Product Execution &amp; Pending Owner Gates</h3>
-            <button type="button" class="btn btn-small" data-goto-tab="execution">Open Execution Tracker</button>
-          </div>
-          <div id="overview-products-list"></div>
-          <hr class="structural-divider" />
-          <h4 class="sub-box-title">Action Required: Human Approval Checkpoints</h4>
-          <div id="overview-approvals-list"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- WORKSPACE 2: OPPORTUNITY DISCOVERY, RESEARCH EVIDENCE & SCORING ENGINE -->
-    <section id="tab-opportunities" class="workspace-panel" aria-labelledby="heading-opportunities">
-      <div class="section-header-bar">
-        <div>
-          <h2 id="heading-opportunities" class="section-title">Opportunity Discovery, Market Evidence &amp; 11-Dimension Scoring Engine</h2>
-          <p class="section-desc">
-            Evaluates opportunities across 15 product categories. Explicitly separates <code>[VERIFIED_EVIDENCE]</code> from <code>[ASSUMPTION]</code> and recommends rejecting weak ideas.
-          </p>
-        </div>
-        <div class="filter-bar">
-          <div class="field-inline">
-            <label for="filter-opp-status">Filter by Status</label>
-            <select id="filter-opp-status">
-              <option value="">All Statuses</option>
-              <option value="approved">Approved</option>
-              <option value="evaluating">Evaluating</option>
-              <option value="discovered">Discovered</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-          <div class="field-inline">
-            <label for="filter-opp-category">Filter by Category</label>
-            <select id="filter-opp-category">
-              <option value="">All 15 Categories</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="split-dossier-layout">
-        <!-- Left column: Opportunity List + Create New Opportunity Form -->
-        <div class="dossier-sidebar">
-          <div class="ledger-box">
-            <div class="box-header">
-              <h3>Evaluated Opportunities</h3>
-            </div>
-            <div id="opportunity-cards-list" class="dossier-list"></div>
-          </div>
-
-          <div class="ledger-box">
-            <div class="box-header">
-              <h3>Log &amp; Score New Opportunity</h3>
-            </div>
-            <form id="form-new-opportunity" class="structured-form">
-              <div class="form-group">
-                <label for="opp-title">Opportunity Title (Required)</label>
-                <input type="text" id="opp-title" name="title" required placeholder="e.g., Accessibility Token Auditor for WooCommerce" />
-              </div>
-
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label for="opp-category">Product Category (15 Categories)</label>
-                  <select id="opp-category" name="category" required></select>
-                </div>
-                <div class="form-group">
-                  <label for="opp-complexity">Development Complexity</label>
-                  <select id="opp-complexity" name="dev_complexity">
-                    <option value="low">Low (Templates / Static / Simple Utility)</option>
-                    <option value="manageable" selected>Manageable (AI-Assisted / WP / Standard Web)</option>
-                    <option value="moderate">Moderate (Multi-Workflow App)</option>
-                    <option value="high">High (Complex Backend Infrastructure)</option>
-                    <option value="extreme">Extreme (Heavy R&amp;D / Deep Systems)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="opp-problem">1. Problem Being Addressed (Required)</label>
-                <textarea id="opp-problem" name="problem_statement" rows="2" required placeholder="What painful, recurring problem does the target user face?"></textarea>
-              </div>
-
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label for="opp-audience">2. Target Audience</label>
-                  <input type="text" id="opp-audience" name="target_audience" required placeholder="e.g., B2B SaaS UI designers &amp; agencies" />
-                </div>
-                <div class="form-group">
-                  <label for="opp-demand">3. Demand Summary</label>
-                  <input type="text" id="opp-demand" name="demand_summary" required placeholder="Observed buyer intent or search signal" />
-                </div>
-              </div>
-
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label for="opp-competitors">4. Existing Competitors</label>
-                  <input type="text" id="opp-competitors" name="competitors_summary" required placeholder="Direct commercial competitors &amp; pricing" />
-                </div>
-                <div class="form-group">
-                  <label for="opp-alternatives">5. Current Alternatives</label>
-                  <input type="text" id="opp-alternatives" name="alternatives_summary" required placeholder="Spreadsheets, manual checks, agencies" />
-                </div>
-              </div>
-
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label for="opp-gaps">6. Market Gaps</label>
-                  <input type="text" id="opp-gaps" name="market_gaps" required placeholder="What incumbents fail to solve well" />
-                </div>
-                <div class="form-group">
-                  <label for="opp-diff">7. Differentiation Potential</label>
-                  <input type="text" id="opp-diff" name="differentiation_potential" required placeholder="UX, IA, speed, or workflow specialization" />
-                </div>
-              </div>
-
-              <div class="form-row-3">
-                <div class="form-group">
-                  <label for="opp-days">9. Est. Dev Time (Days)</label>
-                  <input type="number" id="opp-days" name="estimated_dev_days" min="1" max="365" value="14" required />
-                </div>
-                <div class="form-group">
-                  <label for="opp-cost">10. Monthly Op Cost (USD)</label>
-                  <input type="number" id="opp-cost" name="operational_cost_monthly_usd" min="0" step="1" value="0" required />
-                </div>
-                <div class="form-group">
-                  <label for="opp-monetization">11. Monetization Model</label>
-                  <input type="text" id="opp-monetization" name="monetization_model" value="One-Time License ($49–$149)" required />
-                </div>
-              </div>
-
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label for="opp-acquisition">12. Customer Acquisition Strategy</label>
-                  <input type="text" id="opp-acquisition" name="acquisition_strategy" value="Ecosystem directories + high-intent search utility" required />
-                </div>
-                <div class="form-group">
-                  <label for="opp-revenue">13. Revenue Potential (Honest Note)</label>
-                  <input type="text" id="opp-revenue" name="revenue_potential_notes" value="Unverified estimate pending smoke test" required />
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="opp-risks">14. Main Risks</label>
-                <input type="text" id="opp-risks" name="main_risks" value="Buyer willingness-to-pay vs free alternatives" required />
-              </div>
-
-              <fieldset class="dimension-fieldset">
-                <legend>11-Dimension Scoring Inputs (Scale 1–10; Demand &amp; Capability Fit are Guardrailed)</legend>
-                <div class="form-row-3">
-                  <div class="form-group">
-                    <label for="dim-problem">Problem Severity (1–10)</label>
-                    <input type="number" id="dim-problem" data-dim="problem_severity" min="1" max="10" step="0.5" value="7.5" />
-                  </div>
-                  <div class="form-group">
-                    <label for="dim-demand">Raw Demand Rating (1–10)</label>
-                    <input type="number" id="dim-demand" data-dim="demand_evidence" min="1" max="10" step="0.5" value="7.0" />
-                  </div>
-                  <div class="form-group">
-                    <label for="dim-audience">Audience Access (1–10)</label>
-                    <input type="number" id="dim-audience" data-dim="audience_accessibility" min="1" max="10" step="0.5" value="8.0" />
-                  </div>
-                  <div class="form-group">
-                    <label for="dim-comp">Competition Gap (1–10)</label>
-                    <input type="number" id="dim-comp" data-dim="competition_intensity" min="1" max="10" step="0.5" value="7.0" />
-                  </div>
-                  <div class="form-group">
-                    <label for="dim-diff">Differentiation (1–10)</label>
-                    <input type="number" id="dim-diff" data-dim="differentiation" min="1" max="10" step="0.5" value="8.0" />
-                  </div>
-                  <div class="form-group">
-                    <label for="dim-feasibility">Dev Feasibility (1–10)</label>
-                    <input type="number" id="dim-feasibility" data-dim="development_feasibility" min="1" max="10" step="0.5" value="8.5" />
-                  </div>
-                  <div class="form-group">
-                    <label for="dim-invest">Low Initial Cost (1–10)</label>
-                    <input type="number" id="dim-invest" data-dim="initial_investment" min="1" max="10" step="0.5" value="9.5" />
-                  </div>
-                  <div class="form-group">
-                    <label for="dim-monetize">Monetization (1–10)</label>
-                    <input type="number" id="dim-monetize" data-dim="monetization_potential" min="1" max="10" step="0.5" value="7.5" />
-                  </div>
-                  <div class="form-group">
-                    <label for="dim-ttfr">Speed to Revenue (1–10)</label>
-                    <input type="number" id="dim-ttfr" data-dim="time_to_first_revenue" min="1" max="10" step="0.5" value="8.0" />
-                  </div>
-                </div>
-              </fieldset>
-
-              <fieldset class="dimension-fieldset">
-                <legend>Initial Market Evidence Record (Epistemic Provenance)</legend>
-                <div class="form-row-2">
-                  <div class="form-group">
-                    <label for="opp-ev-tier">Evidence Provenance Tier</label>
-                    <select id="opp-ev-tier" name="initial_evidence_tier">
-                      <option value="assumption">Assumption (Capped Demand Score &le; 3.5)</option>
-                      <option value="practitioner_observation">Practitioner Observation (Capped &le; 6.0)</option>
-                      <option value="verified_evidence" selected>Verified External Evidence (Full Weight)</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="opp-ev-source">Source Citation / URL</label>
-                    <input type="text" id="opp-ev-source" name="initial_evidence_source" placeholder="e.g., W3C Spec / Competitor Pricing Page / Forum Thread" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label for="opp-ev-statement">Evidence Statement</label>
-                  <input type="text" id="opp-ev-statement" name="initial_evidence_statement" placeholder="Leave blank if none yet (Scoring engine will enforce NEEDS_EVIDENCE cap)" />
-                </div>
-              </fieldset>
-
-              <button type="submit" class="btn btn-primary">Evaluate &amp; Score Opportunity</button>
-            </form>
-          </div>
-        </div>
-
-        <!-- Right column: Selected Opportunity Deep Inspection Dossier -->
-        <div class="dossier-detail">
-          <div id="opportunity-detail-pane" class="ledger-box"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- WORKSPACE 3: REAL WORLD RESEARCH & EVIDENCE ENGINE (PHASE 7) -->
-    <section id="tab-research" class="workspace-panel" aria-labelledby="heading-research">
-      <div class="section-header-bar">
-        <div>
-          <h2 id="heading-research" class="section-title">Real-World Market Research, Discovery Runs &amp; Evidence Verification Engine</h2>
-          <p class="section-desc">
-            Enforces strict source attribution (<code>https://</code> URL + factual excerpt + freshness check), duplicate detection, conflicting evidence alerts, and separates source facts from AI synthesis.
-          </p>
-        </div>
-      </div>
-
       <div class="split-grid-2col" style="margin-bottom: 18px;">
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Launch Market Discovery Run</h3>
+            <h3>Launch Free Public Market Discovery Run</h3>
           </div>
           <form id="form-discovery-run" class="structured-form">
             <div class="form-row-2">
@@ -344,7 +97,7 @@
 
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Registered Research Sources, Reliability &amp; Rate Limits</h3>
+            <h3>Registered Research Sources, Implementation Status &amp; Rate Limits</h3>
           </div>
           <div id="research-sources-table"></div>
         </div>
@@ -352,23 +105,246 @@
 
       <div class="ledger-box">
         <div class="box-header">
-          <h3>Central Evidence Library &amp; Verification Status Audit</h3>
+          <h3>Central Evidence Library &amp; Four-Category Commercial Verification Audit</h3>
         </div>
         <div id="central-evidence-library-table"></div>
       </div>
     </section>
 
-    <!-- WORKSPACE 4: 15-STAGE PRODUCT EXECUTION TRACKER -->
+    <!-- VIEW 2: EVALUATE & COMPARE (EVALUATE -> PRIORITIZE) -->
+    <section id="tab-opportunities" class="workspace-panel" aria-labelledby="heading-opportunities">
+      <div class="section-header-bar">
+        <div>
+          <h2 id="heading-opportunities" class="section-title">2. Opportunity Evaluation, Commercial Readiness &amp; Side-by-Side Comparison</h2>
+          <p class="section-desc">
+            Separates <strong>Commercial Readiness</strong> from <strong>Technical Feasibility</strong>. Problem existence and competitor activity never count as proof of willingness to pay. <em>Note: Scores are relative prioritization indices, not probabilities of commercial success.</em>
+          </p>
+        </div>
+        <div class="filter-bar">
+          <div class="field-inline">
+            <label for="filter-opp-status">Filter by Status</label>
+            <select id="filter-opp-status">
+              <option value="">All Statuses</option>
+              <option value="approved">Approved</option>
+              <option value="evaluating">Evaluating</option>
+              <option value="discovered">Discovered</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div class="field-inline">
+            <label for="filter-opp-category">Filter by Category</label>
+            <select id="filter-opp-category">
+              <option value="">All 15 Categories</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="ledger-box" style="margin-bottom: 18px;">
+        <div class="box-header">
+          <h3>Ranked Opportunity Comparison Matrix (Commercial Readiness vs. Technical Feasibility)</h3>
+        </div>
+        <div id="overview-opportunities-table"></div>
+      </div>
+
+      <div class="split-dossier-layout">
+        <!-- Left column: Opportunity List + Streamlined Create New Opportunity Form -->
+        <div class="dossier-sidebar">
+          <div class="ledger-box">
+            <div class="box-header">
+              <h3>Evaluated Opportunities</h3>
+            </div>
+            <div id="opportunity-cards-list" class="dossier-list"></div>
+          </div>
+
+          <div class="ledger-box">
+            <div class="box-header">
+              <h3>Quick-Log New Opportunity (4 Core Fields)</h3>
+            </div>
+            <form id="form-new-opportunity" class="structured-form">
+              <div class="form-group">
+                <label for="opp-title">1. Opportunity Title (Required)</label>
+                <input type="text" id="opp-title" name="title" required placeholder="e.g., Accessibility Token Auditor for WooCommerce" />
+              </div>
+
+              <div class="form-group">
+                <label for="opp-category">2. Product Category (Required)</label>
+                <select id="opp-category" name="category" required></select>
+              </div>
+
+              <div class="form-group">
+                <label for="opp-problem">3. Problem Being Addressed (Required)</label>
+                <textarea id="opp-problem" name="problem_statement" rows="2" required placeholder="What painful, recurring problem does the target user face?"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="opp-audience">4. Target Customer Segment (Required)</label>
+                <input type="text" id="opp-audience" name="target_audience" required placeholder="e.g., B2B SaaS UI designers &amp; agencies" />
+              </div>
+
+              <details class="advanced-assumptions-accordion" style="margin-bottom: 12px;">
+                <summary style="cursor: pointer; font-weight: 600; padding: 6px 0;">
+                  Optional: Advanced Commercial Assumptions, 11-Dimension Ratings &amp; Initial Evidence
+                </summary>
+
+                <div class="form-row-2" style="margin-top: 8px;">
+                  <div class="form-group">
+                    <label for="opp-complexity">Development Complexity</label>
+                    <select id="opp-complexity" name="dev_complexity">
+                      <option value="low">Low (Templates / Static / Simple Utility)</option>
+                      <option value="manageable" selected>Manageable (AI-Assisted / WP / Standard Web)</option>
+                      <option value="moderate">Moderate (Multi-Workflow App)</option>
+                      <option value="high">High (Complex Backend Infrastructure)</option>
+                      <option value="extreme">Extreme (Heavy R&amp;D / Deep Systems)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-demand">Demand Summary (Hypothesis)</label>
+                    <input type="text" id="opp-demand" name="demand_summary" value="Initial market hypothesis pending verified source collection" />
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="opp-competitors">Existing Competitors</label>
+                    <input type="text" id="opp-competitors" name="competitors_summary" value="To be mapped during competitor research" />
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-alternatives">Current Alternatives</label>
+                    <input type="text" id="opp-alternatives" name="alternatives_summary" value="Manual spreadsheets, checklists, or ad-hoc scripts" />
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="opp-gaps">Market Gaps</label>
+                    <input type="text" id="opp-gaps" name="market_gaps" value="Focused workflow automation with zero setup" />
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-diff">Differentiation Potential</label>
+                    <input type="text" id="opp-diff" name="differentiation_potential" value="Superior UX clarity, speed, and specialized output" />
+                  </div>
+                </div>
+
+                <div class="form-row-3">
+                  <div class="form-group">
+                    <label for="opp-days">Est. Dev Time (Days)</label>
+                    <input type="number" id="opp-days" name="estimated_dev_days" min="1" max="365" value="14" />
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-cost">Monthly Op Cost (USD)</label>
+                    <input type="number" id="opp-cost" name="operational_cost_monthly_usd" min="0" step="1" value="0" />
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-monetization">Pricing Hypothesis</label>
+                    <input type="text" id="opp-monetization" name="monetization_model" value="One-Time License ($49–$149)" />
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="opp-acquisition">Acquisition Strategy Hypothesis</label>
+                    <input type="text" id="opp-acquisition" name="acquisition_strategy" value="Ecosystem directories + high-intent search utility" />
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-revenue">Revenue Potential (Unverified Assumption)</label>
+                    <input type="text" id="opp-revenue" name="revenue_potential_notes" value="Unverified commercial assumption pending buyer smoke test" />
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="opp-risks">Main Risks</label>
+                  <input type="text" id="opp-risks" name="main_risks" value="Buyer willingness-to-pay vs free alternatives" />
+                </div>
+
+                <fieldset class="dimension-fieldset">
+                  <legend>11-Dimension Inputs (1–10; Demand &amp; Monetization are Evidence-Gated)</legend>
+                  <div class="form-row-3">
+                    <div class="form-group">
+                      <label for="dim-problem">Problem Severity (1–10)</label>
+                      <input type="number" id="dim-problem" data-dim="problem_severity" min="1" max="10" step="0.5" value="7.5" />
+                    </div>
+                    <div class="form-group">
+                      <label for="dim-demand">Raw Demand Rating (1–10)</label>
+                      <input type="number" id="dim-demand" data-dim="demand_evidence" min="1" max="10" step="0.5" value="7.0" />
+                    </div>
+                    <div class="form-group">
+                      <label for="dim-audience">Audience Access (1–10)</label>
+                      <input type="number" id="dim-audience" data-dim="audience_accessibility" min="1" max="10" step="0.5" value="8.0" />
+                    </div>
+                    <div class="form-group">
+                      <label for="dim-comp">Competition Gap (1–10)</label>
+                      <input type="number" id="dim-comp" data-dim="competition_intensity" min="1" max="10" step="0.5" value="7.0" />
+                    </div>
+                    <div class="form-group">
+                      <label for="dim-diff">Differentiation (1–10)</label>
+                      <input type="number" id="dim-diff" data-dim="differentiation" min="1" max="10" step="0.5" value="8.0" />
+                    </div>
+                    <div class="form-group">
+                      <label for="dim-feasibility">Dev Feasibility (1–10)</label>
+                      <input type="number" id="dim-feasibility" data-dim="development_feasibility" min="1" max="10" step="0.5" value="8.5" />
+                    </div>
+                    <div class="form-group">
+                      <label for="dim-invest">Low Initial Cost (1–10)</label>
+                      <input type="number" id="dim-invest" data-dim="initial_investment" min="1" max="10" step="0.5" value="9.5" />
+                    </div>
+                    <div class="form-group">
+                      <label for="dim-monetize">Monetization (1–10)</label>
+                      <input type="number" id="dim-monetize" data-dim="monetization_potential" min="1" max="10" step="0.5" value="7.5" />
+                    </div>
+                    <div class="form-group">
+                      <label for="dim-ttfr">Speed to Revenue (1–10)</label>
+                      <input type="number" id="dim-ttfr" data-dim="time_to_first_revenue" min="1" max="10" step="0.5" value="8.0" />
+                    </div>
+                  </div>
+                </fieldset>
+
+                <fieldset class="dimension-fieldset">
+                  <legend>Optional Initial Evidence Citation</legend>
+                  <div class="form-row-2">
+                    <div class="form-group">
+                      <label for="opp-ev-tier">Evidence Provenance Tier</label>
+                      <select id="opp-ev-tier" name="initial_evidence_tier">
+                        <option value="assumption" selected>Assumption (Capped Demand Score &le; 3.5)</option>
+                        <option value="practitioner_observation">Practitioner Observation (Capped &le; 6.0)</option>
+                        <option value="verified_evidence">Verified External Evidence (Requires HTTP Source Verification)</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="opp-ev-source">Source Citation / URL</label>
+                      <input type="text" id="opp-ev-source" name="initial_evidence_source" placeholder="e.g., https://..." />
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="opp-ev-statement">Evidence Statement</label>
+                    <input type="text" id="opp-ev-statement" name="initial_evidence_statement" placeholder="Leave blank if none yet" />
+                  </div>
+                </fieldset>
+              </details>
+
+              <button type="submit" class="btn btn-primary">Evaluate &amp; Score Opportunity</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Right column: Selected Opportunity Deep Inspection Dossier -->
+        <div class="dossier-detail">
+          <div id="opportunity-detail-pane" class="ledger-box"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: SELECT & PLAN MVP (SELECT -> PLAN) -->
     <section id="tab-execution" class="workspace-panel" aria-labelledby="heading-execution">
       <div class="section-header-bar">
         <div>
-          <h2 id="heading-execution" class="section-title">Product Development &amp; 15-Stage Execution System</h2>
+          <h2 id="heading-execution" class="section-title">3. Selected Opportunity MVP Plan, Scope Boundaries &amp; Buyer Validation Criteria</h2>
           <p class="section-desc">
-            Tracks actual progress across all 15 lifecycle stages (Problem Definition through Post-Launch Improvements). Completion percentages are computed strictly from completed task effort.
+            Defines the concrete MVP concept for a selected opportunity: <strong>Must-Have V1 Features</strong>, <strong>Excluded Non-Goals</strong>, <strong>Pricing Hypotheses</strong>, <strong>Buyer Validation Criteria (Build / Pivot / Abandon)</strong>, and the 15-stage milestone roadmap.
           </p>
         </div>
         <div class="field-inline">
-          <label for="select-active-product">Select Active Product</label>
+          <label for="select-active-product">Select Planned MVP Product</label>
           <select id="select-active-product"></select>
         </div>
       </div>
@@ -376,35 +352,21 @@
       <div id="product-execution-container"></div>
     </section>
 
-    <!-- WORKSPACE 4: GROWTH, DISTRIBUTION & MONETIZATION ENGINE -->
-    <section id="tab-growth" class="workspace-panel" aria-labelledby="heading-growth">
-      <div class="section-header-bar">
-        <div>
-          <h2 id="heading-growth" class="section-title">Growth, Distribution &amp; Monetization Engine</h2>
-          <p class="section-desc">
-            Multi-channel acquisition strategy (Search Intent, Directories, Communities, Content, Email, Partnerships, and Approval-Gated Ads) plus honest business telemetry.
-          </p>
-        </div>
-      </div>
-
-      <div id="growth-workspace-container"></div>
-    </section>
-
-    <!-- WORKSPACE 5: HUMAN APPROVAL & FINANCIAL CONTROLS -->
+    <!-- VIEW 4: APPROVALS & CAPABILITIES (GOVERNANCE & CAPABILITY PROFILE) -->
     <section id="tab-approvals" class="workspace-panel" aria-labelledby="heading-approvals">
       <div class="section-header-bar">
         <div>
-          <h2 id="heading-approvals" class="section-title">Human Approval Checkpoints &amp; Financial Controls</h2>
+          <h2 id="heading-approvals" class="section-title">4. Human Approval Gates, Financial Controls &amp; Owner Capability Profile</h2>
           <p class="section-desc">
-            Mandatory explicit owner approval before spending money, purchasing services, publishing public content, launching products, running ads, or contacting customers.
+            Enforces mandatory owner approval before spending money, calling paid APIs, publishing content, or launching products, alongside Zak's 10-skill capability matrix and institutional decision memory.
           </p>
         </div>
       </div>
 
-      <div class="split-grid-2col">
+      <div class="split-grid-2col" style="margin-bottom: 18px;">
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Approval Queue &amp; Audit Ledger</h3>
+            <h3>Mandatory Human Approval Queue &amp; Financial Lock Ledger</h3>
           </div>
           <div id="approvals-queue-list"></div>
         </div>
@@ -443,18 +405,6 @@
             </div>
             <button type="submit" class="btn btn-primary">Submit to Owner Approval Queue</button>
           </form>
-        </div>
-      </div>
-    </section>
-
-    <!-- WORKSPACE 6: OWNER CAPABILITIES & PERSONAL BUSINESS INTELLIGENCE -->
-    <section id="tab-capabilities" class="workspace-panel" aria-labelledby="heading-capabilities">
-      <div class="section-header-bar">
-        <div>
-          <h2 id="heading-capabilities" class="section-title">Owner Capability Matrix &amp; Personal Business Intelligence Memory</h2>
-          <p class="section-desc">
-            Grounds opportunity scoring in Zak's actual strengths while retaining institutional memory of rejected ideas, approved decisions, and market observations.
-          </p>
         </div>
       </div>
 
@@ -505,7 +455,7 @@
 
         <div class="ledger-box">
           <div class="box-header">
-            <h3>Personal Business Intelligence &amp; Decision Ledger</h3>
+            <h3>Personal Business Intelligence &amp; Rejection Memory Ledger</h3>
           </div>
           <div id="intelligence-memory-list"></div>
 

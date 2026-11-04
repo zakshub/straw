@@ -109,9 +109,34 @@ export class ExecutionEngine {
     }
 
     const nextCriticalTask = tasks.find((t) => t.status !== 'done') || null;
+    const oppRow = this.db
+      .prepare('SELECT target_audience, market_gaps, monetization_model FROM opportunities WHERE id = ?')
+      .get(row.opportunity_id);
+
+    const targetAudience =
+      (row.target_audience && row.target_audience.trim()) ||
+      (oppRow && oppRow.target_audience) ||
+      'Target buyer segment defined in opportunity dossier';
+    const mvpMustHaveFeatures =
+      (row.mvp_must_have_features && row.mvp_must_have_features.trim()) ||
+      `1. Core narrow problem-solving wedge (${oppRow ? oppRow.market_gaps : row.problem_definition}). 2. Zero-setup input/inspection workflow buildable in <= 14 days. 3. Exportable client-ready artifact or deliverable.`;
+    const mvpExcludedScope =
+      (row.mvp_excluded_scope && row.mvp_excluded_scope.trim()) ||
+      'Excluded from V1: Multi-tenant enterprise SSO/RBAC, background cloud daemons, native mobile apps, third-party billing/CRM sync, and unvalidated secondary workflows.';
+    const pricingHypothesis =
+      (row.pricing_hypothesis && row.pricing_hypothesis.trim()) ||
+      `[UNVERIFIED PRICING HYPOTHESIS]: ${row.monetization_model} — must be validated via real buyer pre-orders or paid pilot commitments before full engineering build.`;
+    const buyerValidationCriteria =
+      (row.buyer_validation_criteria && row.buyer_validation_criteria.trim()) ||
+      'BUILD IF: >= 3 target buyers commit to a paid pilot or pre-order within 14 days. PIVOT IF: Buyers confirm the problem but reject the delivery format or price point. ABANDON IF: < 3 buyers respond or all prospects are satisfied with free alternatives.';
 
     return {
       ...row,
+      target_audience: targetAudience,
+      mvp_must_have_features: mvpMustHaveFeatures,
+      mvp_excluded_scope: mvpExcludedScope,
+      pricing_hypothesis: pricingHypothesis,
+      buyer_validation_criteria: buyerValidationCriteria,
       completion_pct: realCompletionPct,
       progress_metrics: {
         total_tasks: totalTasks,
@@ -144,7 +169,7 @@ export class ExecutionEngine {
   }
 
   /**
-   * Promotes an approved opportunity into a full 15-stage Product Execution project.
+   * Promotes an approved opportunity into a full 15-stage Product Execution & MVP Plan project.
    */
   promoteOpportunityToProduct(opportunityId, customOverrides = {}) {
     const opp = this.db.prepare('SELECT * FROM opportunities WHERE id = ?').get(opportunityId);
@@ -167,6 +192,7 @@ export class ExecutionEngine {
     const productId = customOverrides.id || `prod-${crypto.randomUUID().slice(0, 8)}`;
     const name = customOverrides.name || opp.title;
     const tagline = customOverrides.tagline || `Targeted ${opp.category} solving: ${opp.problem_statement.slice(0, 90)}`;
+    const targetAudience = customOverrides.target_audience || opp.target_audience;
     const positioning =
       customOverrides.positioning ||
       `Built for ${opp.target_audience}. Differentiated by: ${opp.differentiation_potential}`;
@@ -179,6 +205,18 @@ export class ExecutionEngine {
     const monetizationTradeoffs =
       customOverrides.monetization_tradeoffs ||
       `Selected ${opp.monetization_model} to minimize time-to-first-revenue while preserving low support overhead.`;
+    const mvpMustHaveFeatures =
+      customOverrides.mvp_must_have_features ||
+      `1. Core narrow wedge addressing: ${opp.market_gaps}. 2. Fast self-contained workflow buildable in <= ${opp.estimated_dev_days || 14} days. 3. Immediate exportable output for ${opp.target_audience}.`;
+    const mvpExcludedScope =
+      customOverrides.mvp_excluded_scope ||
+      'Excluded from V1: Multi-user enterprise RBAC/SSO, custom cloud sync infrastructure, native mobile apps, automated billing webhooks before first 5 sales, and secondary feature bloat.';
+    const pricingHypothesis =
+      customOverrides.pricing_hypothesis ||
+      `[UNVERIFIED PRICING HYPOTHESIS]: ${opp.monetization_model} (Expected operational cost: $${opp.operational_cost_monthly_usd || 0}/mo). Requires buyer validation before full build.`;
+    const buyerValidationCriteria =
+      customOverrides.buyer_validation_criteria ||
+      'BUILD IF: >= 3 target buyers commit to a paid pilot or pre-order within 14 days. PIVOT IF: Buyers confirm pain severity but request a different workflow or price tier. ABANDON IF: < 3 buyers engage or free existing alternatives fully satisfy target users.';
 
     this.db
       .prepare(`
@@ -187,9 +225,12 @@ export class ExecutionEngine {
           current_stage_number, current_stage_name,
           problem_definition, positioning, ux_architecture_notes,
           tech_stack, monetization_model, monetization_tradeoffs,
-          primary_acquisition_channel, status, completion_pct,
+          primary_acquisition_channel,
+          target_audience, mvp_must_have_features, mvp_excluded_scope,
+          pricing_hypothesis, buyer_validation_criteria,
+          status, completion_pct,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         productId,
@@ -206,6 +247,11 @@ export class ExecutionEngine {
         opp.monetization_model,
         monetizationTradeoffs,
         opp.acquisition_strategy,
+        targetAudience,
+        mvpMustHaveFeatures,
+        mvpExcludedScope,
+        pricingHypothesis,
+        buyerValidationCriteria,
         'planning',
         0,
         now,
@@ -371,6 +417,78 @@ export class ExecutionEngine {
         stageObj.name,
         hydrated.completion_pct,
         nextProductStatus,
+        now,
+        productId
+      );
+
+    return this.getProductById(productId);
+  }
+
+  /**
+   * Milestone M-V1.3: Updates the selected opportunity MVP blueprint (Must-Have Features,
+   * Excluded Non-Goals, Pricing Hypothesis, Buyer Validation Criteria, Target Audience, etc.).
+   */
+  updateMvpPlan(productId, payload = {}) {
+    const existing = this.getProductById(productId);
+    if (!existing) throw new Error(`Product ${productId} not found.`);
+
+    const now = new Date().toISOString();
+    const nextName = payload.name !== undefined ? String(payload.name).trim() : existing.name;
+    const nextTagline = payload.tagline !== undefined ? String(payload.tagline).trim() : existing.tagline;
+    const nextTargetAudience =
+      payload.target_audience !== undefined ? String(payload.target_audience).trim() : existing.target_audience;
+    const nextProblem =
+      payload.problem_definition !== undefined ? String(payload.problem_definition).trim() : existing.problem_definition;
+    const nextPositioning =
+      payload.positioning !== undefined ? String(payload.positioning).trim() : existing.positioning;
+    const nextMustHave =
+      payload.mvp_must_have_features !== undefined
+        ? String(payload.mvp_must_have_features).trim()
+        : existing.mvp_must_have_features;
+    const nextExcluded =
+      payload.mvp_excluded_scope !== undefined ? String(payload.mvp_excluded_scope).trim() : existing.mvp_excluded_scope;
+    const nextPricingHyp =
+      payload.pricing_hypothesis !== undefined ? String(payload.pricing_hypothesis).trim() : existing.pricing_hypothesis;
+    const nextBuyerCriteria =
+      payload.buyer_validation_criteria !== undefined
+        ? String(payload.buyer_validation_criteria).trim()
+        : existing.buyer_validation_criteria;
+    const nextUxNotes =
+      payload.ux_architecture_notes !== undefined
+        ? String(payload.ux_architecture_notes).trim()
+        : existing.ux_architecture_notes;
+    const nextTechStack =
+      payload.tech_stack !== undefined ? String(payload.tech_stack).trim() : existing.tech_stack;
+
+    this.db
+      .prepare(`
+        UPDATE products
+        SET name = ?,
+            tagline = ?,
+            target_audience = ?,
+            problem_definition = ?,
+            positioning = ?,
+            mvp_must_have_features = ?,
+            mvp_excluded_scope = ?,
+            pricing_hypothesis = ?,
+            buyer_validation_criteria = ?,
+            ux_architecture_notes = ?,
+            tech_stack = ?,
+            updated_at = ?
+        WHERE id = ?
+      `)
+      .run(
+        nextName,
+        nextTagline,
+        nextTargetAudience,
+        nextProblem,
+        nextPositioning,
+        nextMustHave,
+        nextExcluded,
+        nextPricingHyp,
+        nextBuyerCriteria,
+        nextUxNotes,
+        nextTechStack,
         now,
         productId
       );
