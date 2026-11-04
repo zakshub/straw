@@ -53,3 +53,11 @@
   2. [x] **Full 64-Character SHA-256 Content Hash Validation:** Enforced 64-character hexadecimal SHA-256 digests (`computeContentHash()` / `isValidSha256Hex()`) for `source_content_hash`, distinct from the 24-character deduplication `content_fingerprint`.
   3. [x] **Test Suite Separation (`npm test` vs `npm run test:live`):** Kept `npm test` (`tests/straw.test.js`) 100% deterministic and offline; moved live external network validation into `scripts/run-live-tests.js` (`npm run test:live`), which reports `SKIPPED — NOT PASSED` and exits with code `2` when network access is unavailable.
   4. [x] **Financial Authorization Hardening:** Blocked client pre-approval injection in `POST /api/approvals` and `ApprovalEngine.createRequest()`, blocked reuse of consumed approvals (`APPROVAL_ALREADY_USED`), and enforced opportunity entity scope (`requestedOpportunityId`) and cumulative spend checks.
+
+## Milestone 6: Real Market Discovery Experiment (Phase 8)
+- **Status:** Completed & Verified (`100%`)
+- **Concrete Tasks:**
+  1. [x] **M8.1 — Live Multi-Category Market Research (2.0h, 100%):** Queried free public APIs (`hn_algolia_api`, `wordpress_plugins_api`, `github_repos_api`, W3C, W3Techs) across all 9 target categories (Global + Pakistan).
+  2. [x] **M8.2 — Evidence Verification & SHA-256 Auditing (1.5h, 100%):** Verified 16 HTTP 200 source records with 64-char SHA-256 `source_content_hash` digests and enforced willingness-to-pay guardrails.
+  3. [x] **M8.3 — 11-Dimension Scoring & Epistemic Filtering (1.5h, 100%):** Scored 11 opportunities across all 9 categories; shortlisted the 9 qualifying opportunities (`78.3`–`88.8/100`), held `ClinicFlow PK` (`70.8/100`, `NEEDS_EVIDENCE`), and rejected `AutoBlog AI` (`40.5/100`, `REJECT_WEAK_IDEA`).
+  4. [x] **M8.4 — Dossier Synthesis & Validation Plan (1.0h, 100%):** Generated `MARKET_DISCOVERY_REPORT_PHASE8.md` with 12-question dossiers, 12-criterion evaluation tables, competitor comparisons, top 3 recommendations, and a 14-day zero-spend validation plan.

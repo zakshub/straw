@@ -18,7 +18,7 @@
 
 ---
 
-## 2. Current Implementation Status (Phases 0–7.2 Complete & Verified)
+## 2. Current Implementation Status (Phases 0–8 Complete & Verified)
 
 | Module / Subsystem | Phase | Status | Implementation File | Verification |
 | :--- | :--- | :--- | :--- | :--- |
@@ -33,6 +33,7 @@
 | **SSRF-Hardened Research, 64-Char SHA-256 Content Verifier & Capability Matrix** | Phase 7, 7.1 & 7.2 | **Operational** | `src/engines/research-engine.js`, `scripts/run-live-tests.js` | `npm test` (offline) + `npm run test:live` |
 | **Replaceable AI Orchestration Layer** | Phase 1–7 | **Operational** | `src/engines/ai-orchestrator.js` | Verified via `npm test` |
 | **Sentinel Light/Dark Business Workspace UI & Hardened Server** | Phase 1–7.2 | **Operational** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |
+| **Phase 8 Real Market Discovery Experiment & Dossier Report** | Phase 8 | **Completed** | `scripts/run-phase8-experiment.js`, `MARKET_DISCOVERY_REPORT_PHASE8.md` | 11 opportunities evaluated (9 qualified, 1 held, 1 rejected) |
 
 ---
 

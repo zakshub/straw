@@ -38,6 +38,14 @@
   3. **Test Suite Separation:** Standard `npm test` (`tests/straw.test.js`) runs 100% deterministically offline. Live external connector verification runs via `npm run test:live` (`scripts/run-live-tests.js`) and exits with code `2` (`SKIPPED — NOT PASSED`) if internet access is unavailable.
   4. **Single-Use Scoped Financial Approvals:** `ApprovalEngine.createRequest()` and `POST /api/approvals` reject client attempts to pass `status !== 'pending'` or `decided_at`, and `verifyFinancialAuthorization()` enforces single-use consumption (`APPROVAL_ALREADY_USED`), cumulative spending limits, and opportunity entity scope.
 
+## Decision 7: Phase 8 Real Market Discovery Shortlist & Epistemic Qualification Threshold
+- **Date:** 2026-11-04
+- **Context:** Phase 8 required investigating 9 digital product categories (Global + Pakistan) and reporting a ranked shortlist of up to 10 qualifying opportunities without fabricating evidence or forcing non-qualifying ideas onto the shortlist.
+- **Decision:**
+  1. Evaluated 11 candidate opportunities across all 9 categories using real HTTP 200 evidence from Hacker News Algolia, WordPress.org Plugin Directory API, GitHub Public Repositories API, W3C, and W3Techs.
+  2. Reported **9 qualifying opportunities** (`78.3/100` to `88.8/100`) on the shortlist while explicitly excluding **ClinicFlow PK** (`70.8/100`, held as `NEEDS_EVIDENCE` because Pakistani solo clinic willingness to pay for standalone queue software cannot be verified from online sources alone) and **AutoBlog AI** (`40.5/100`, rejected as `REJECT_WEAK_IDEA` due to verified LLM wrapper margin/churn risks).
+  3. Selected **Sentinel A11y (`88.8/100`) paired with the free ContrastPair OKLCH / WCAG 2.5.3 Browser Inspector (`86.2/100`)** as the #1 final recommendation, subject to a 14-day zero-spend validation plan prior to full product launch.
+
 ## Technical Risks & Constraints Register
 1. **Unverified External Market Data:** Without live paid API integrations (e.g., paid keyword/traffic APIs), market evidence must be entered or imported with explicit source links and provenance tiers. STRAW enforces this by never fabricating traffic or revenue statistics.
 2. **Single-Node SQLite Concurrency:** `node:sqlite` with `PRAGMA journal_mode = WAL` handles personal operating system concurrency effortlessly; if STRAW is ever deployed as a multi-tenant cloud SaaS, the storage adapter in `src/db/` can be swapped to PostgreSQL.

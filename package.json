@@ -12,6 +12,7 @@
     "dev": "node --watch src/server.js",
     "test": "node --test tests/straw.test.js",
     "test:live": "node scripts/run-live-tests.js",
+    "experiment:phase8": "node scripts/run-phase8-experiment.js",
     "audit:db": "node src/cli.js status"
   },
   "author": "Zak (zakshub)",
