@@ -115,7 +115,13 @@ export function scoreOpportunity({
 
   if (eq.downgraded_unverified_count > 0) {
     warnings.push(
-      `[UNVERIFIED SOURCE DOWNGRADED]: ${eq.downgraded_unverified_count} finding(s) claimed verified status without a real public http/https URL and supporting excerpt and were automatically downgraded.`
+      `[UNVERIFIED SOURCE DOWNGRADED]: ${eq.downgraded_unverified_count} finding(s) claimed verified status without a real public http/https URL or failed source content verification and were automatically downgraded.`
+    );
+  }
+
+  if (eq.pending_review_count > 0) {
+    warnings.push(
+      `[SOURCE CONTENT PENDING VERIFICATION]: ${eq.pending_review_count} finding(s) have a valid URL format or blocked retrieval but have not yet been verified against retrieved source content.`
     );
   }
 
@@ -231,6 +237,7 @@ export function scoreOpportunity({
       assumption_count: assumptionCount,
       stale_count: eq.stale_count,
       downgraded_unverified_count: eq.downgraded_unverified_count,
+      pending_review_count: eq.pending_review_count || 0,
       contradicting_count: eq.contradicting_count,
       has_conflicting_evidence: eq.has_conflicting_evidence,
       average_confidence_score: eq.average_confidence_score,

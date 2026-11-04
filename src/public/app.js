@@ -565,31 +565,42 @@ function renderResearchWorkspace(data) {
 
   const sourcesTable = document.getElementById('research-sources-table');
   if (sourcesTable) {
+    const matrix = data.source_capability_matrix || [];
     sourcesTable.innerHTML = `
       <table class="data-table">
         <thead>
           <tr>
-            <th>Source Name &amp; Type</th>
-            <th>Reliability</th>
-            <th>Rate Limit</th>
-            <th>Cost / Governance</th>
+            <th>Source Name &amp; Adapter</th>
+            <th>Status &amp; Auth</th>
+            <th>Data Retrieved &amp; Evidence Types</th>
+            <th>Rate Limit &amp; Restrictions</th>
           </tr>
         </thead>
         <tbody>
-          ${(data.research_sources || [])
+          ${matrix
             .map(
               (s) => `
             <tr>
               <td>
-                <strong>${escapeHtml(s.name)}</strong>
-                <div class="dossier-item-meta"><code>${escapeHtml(s.source_type)}</code> · ${escapeHtml(s.terms_and_robots_note)}</div>
+                <strong>${escapeHtml(s.source_name)}</strong>
+                <div class="dossier-item-meta">Adapter: <code>${escapeHtml(s.adapter_key)}</code> · Rel: <strong>${Math.round(s.base_reliability_score * 100)}%</strong></div>
               </td>
-              <td><strong>${Math.round(s.base_reliability_score * 100)}%</strong></td>
-              <td><code>${s.rate_limit_rpm} req/min</code></td>
               <td>
-                <span class="badge ${s.is_paid_service ? 'badge-warn' : 'badge-verified'}">
-                  [${s.is_paid_service ? 'PAID: REQUIRES OWNER APPROVAL' : 'FREE PUBLIC ACCESS'}]
+                <span class="badge ${s.implemented ? 'badge-verified' : 'badge-danger'}">
+                  [${s.implemented ? 'IMPLEMENTED' : 'UNSUPPORTED'}]
                 </span>
+                <div class="dossier-item-meta" style="margin-top:3px;">
+                  Cost: <code>${escapeHtml(s.cost_tier.toUpperCase())}</code><br/>
+                  Auth: ${escapeHtml(s.authentication_requirement)}
+                </div>
+              </td>
+              <td class="dossier-item-meta">
+                <div>${escapeHtml(s.data_actually_retrieved)}</div>
+                <div style="margin-top:3px;"><strong>Types:</strong> <code>${escapeHtml((s.evidence_types_supported || []).join(', '))}</code></div>
+              </td>
+              <td class="dossier-item-meta">
+                <div><strong>Limit:</strong> <code>${escapeHtml(s.rate_limits)}</code></div>
+                <div>${escapeHtml(s.known_restrictions)}</div>
               </td>
             </tr>
           `
@@ -656,20 +667,24 @@ function renderResearchWorkspace(data) {
               <td>
                 ${renderEvidenceTierBadge(ev.evidence_tier)}
                 <div class="dossier-item-meta">Status: <code>${escapeHtml(ev.verification_status)}</code></div>
+                <div class="dossier-item-meta">Method: <code>${escapeHtml(ev.verification_method || 'unverified')}</code></div>
               </td>
               <td>
                 <strong>${Math.round((ev.confidence_score || 0.35) * 100)}%</strong>
                 <div class="dossier-item-meta">Rel: ${ev.source_reliability_score} · <code>${escapeHtml(ev.stance)}</code></div>
+                ${ev.http_status ? `<div class="dossier-item-meta">HTTP: <code>${ev.http_status}</code> · Hash: <code>${escapeHtml((ev.source_content_hash || '').slice(0, 8))}</code></div>` : ''}
               </td>
               <td>
                 <div>${escapeHtml(ev.statement)}</div>
                 ${ev.supporting_excerpt ? `<div class="dossier-item-meta"><em>Excerpt:</em> "${escapeHtml(ev.supporting_excerpt)}"</div>` : ''}
+                ${ev.verification_notes ? `<div class="dossier-item-meta"><em>QC:</em> ${escapeHtml(ev.verification_notes)}</div>` : ''}
                 <div class="dossier-item-meta">
                   Source: <strong>${escapeHtml(ev.source_name)}</strong>
                   ${ev.source_url ? `(<a href="${escapeHtml(ev.source_url)}" target="_blank" rel="noopener">${escapeHtml(ev.source_url)}</a>)` : ''}
                 </div>
               </td>
               <td>
+                ${ev.source_url ? `<button type="button" class="btn btn-small btn-secondary" data-verify-http-ev="${escapeHtml(ev.id)}" style="margin-bottom:4px;">Fetch &amp; Verify HTTP</button>` : ''}
                 <button type="button" class="btn btn-small btn-approve" data-review-ev="${escapeHtml(ev.id)}" data-ev-status="verified">Verify</button>
                 <button type="button" class="btn btn-small btn-reject" data-review-ev="${escapeHtml(ev.id)}" data-ev-status="rejected">Reject</button>
               </td>
@@ -1259,6 +1274,24 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const verifyHttpBtn = e.target.closest('[data-verify-http-ev]');
+    if (verifyHttpBtn) {
+      const evId = verifyHttpBtn.dataset.verifyHttpEv;
+      try {
+        const res = await fetchJson(`/api/research/evidence/${encodeURIComponent(evId)}/verify-source`, {
+          method: 'POST',
+          body: JSON.stringify({})
+        });
+        showFeedback(
+          `HTTP Source Check Complete: Status=${res.evidence.verification_status.toUpperCase()} (Method: ${res.evidence.verification_method}).`
+        );
+        await loadDashboard();
+      } catch (err) {
+        showFeedback(`HTTP Source Verification Failed: ${err.message}`);
+      }
+      return;
+    }
+
     const reviewEvBtn = e.target.closest('[data-review-ev]');
     if (reviewEvBtn) {
       const evId = reviewEvBtn.dataset.reviewEv;
@@ -1393,8 +1426,7 @@ document.addEventListener('DOMContentLoaded', () => {
           query_topic: fd.get('query_topic'),
           opportunity_id: fd.get('opportunity_id') || null,
           source_ids: [fd.get('source_id')],
-          fetch_live_public: fd.get('fetch_live_public') === 'true',
-          allow_paid_apis: false
+          fetch_live_public: fd.get('fetch_live_public') === 'true'
         })
       });
       showFeedback(`Discovery Run "${res.run.query_topic}" finished with status: ${res.run.status.toUpperCase()}.`);

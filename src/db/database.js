@@ -312,10 +312,17 @@ export function runMigrations(db) {
 
   // Backward-compatible column migrations for existing market_evidence tables
   ensureColumn(db, 'market_evidence', 'requested_evidence_tier', "TEXT NOT NULL DEFAULT 'assumption'");
+  ensureColumn(db, 'market_evidence', 'original_source_url', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'market_evidence', 'source_url', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'market_evidence', 'final_source_url', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'market_evidence', 'source_name', "TEXT NOT NULL DEFAULT 'Unspecified Source'");
   ensureColumn(db, 'market_evidence', 'supporting_excerpt', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'market_evidence', 'published_at', 'TEXT');
+  ensureColumn(db, 'market_evidence', 'retrieved_at', 'TEXT');
+  ensureColumn(db, 'market_evidence', 'http_status', 'INTEGER');
+  ensureColumn(db, 'market_evidence', 'source_content_hash', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'market_evidence', 'excerpt_verified_in_source', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'market_evidence', 'verification_method', "TEXT NOT NULL DEFAULT 'url_format_only_unverified'");
   ensureColumn(db, 'market_evidence', 'confidence_score', 'REAL NOT NULL DEFAULT 0.35');
   ensureColumn(db, 'market_evidence', 'source_reliability_score', 'REAL NOT NULL DEFAULT 0.5');
   ensureColumn(db, 'market_evidence', 'verification_status', "TEXT NOT NULL DEFAULT 'unverified'");
@@ -325,4 +332,18 @@ export function runMigrations(db) {
   ensureColumn(db, 'market_evidence', 'is_stale', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'market_evidence', 'content_fingerprint', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'market_evidence', 'research_run_id', 'TEXT');
+
+  // Phase 7.1 migrations for approval_requests, research_sources, and research_runs
+  ensureColumn(db, 'approval_requests', 'authorized_provider_id', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'approval_requests', 'authorization_scope', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'approval_requests', 'expires_at', 'TEXT');
+
+  ensureColumn(db, 'research_sources', 'adapter_status', "TEXT NOT NULL DEFAULT 'implemented'");
+  ensureColumn(db, 'research_sources', 'auth_requirement', "TEXT NOT NULL DEFAULT 'none'");
+  ensureColumn(db, 'research_sources', 'data_retrieved_summary', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'research_sources', 'supported_evidence_types_json', "TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn(db, 'research_sources', 'known_restrictions', "TEXT NOT NULL DEFAULT ''");
+
+  ensureColumn(db, 'research_runs', 'authorization_ref', 'TEXT');
+  ensureColumn(db, 'research_runs', 'estimated_cost_usd', 'REAL NOT NULL DEFAULT 0');
 }

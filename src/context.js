@@ -47,6 +47,7 @@ export function createStrawContext({ dbPath, skipSeed = false } = {}) {
     const allApprovals = approvalEngine.listRequests();
     const intelligenceEntries = intelligenceEngine.listEntries();
     const researchSources = researchEngine.listSources();
+    const sourceCapabilityMatrix = researchEngine.getSourceCapabilityMatrix();
     const researchRuns = researchEngine.listResearchRuns();
     const allEvidence = researchEngine.listAllEvidence();
 
@@ -91,6 +92,7 @@ export function createStrawContext({ dbPath, skipSeed = false } = {}) {
       ai_status: aiOrchestrator.getProviderStatus(),
       proactive_intelligence: proactiveIntelligence,
       research_sources: researchSources,
+      source_capability_matrix: sourceCapabilityMatrix,
       research_runs: researchRuns,
       evidence_library: allEvidence,
       opportunities,

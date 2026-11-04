@@ -158,6 +158,24 @@ export function createAppServer(customContext) {
           });
         }
         try {
+          let retrievalMeta = {};
+          if (body.verify_source_live && body.source_url) {
+            const retrieved = await ctx.researchEngine.retrieveSourceForVerification(
+              body.source_url,
+              body.supporting_excerpt || ''
+            );
+            retrievalMeta = {
+              original_source_url: retrieved.original_source_url,
+              final_source_url: retrieved.final_source_url,
+              retrieved_at: retrieved.retrieved_at,
+              http_status: retrieved.http_status,
+              source_content_hash: retrieved.source_content_hash,
+              excerpt_verified_in_source: retrieved.excerpt_verified_in_source ? 1 : 0,
+              verification_method: retrieved.verification_method,
+              retrieved_source_content: retrieved.retrieved_text_preview
+            };
+          }
+
           const evidence = ctx.opportunityEngine.addEvidence(oppId, {
             claim_type: body.claim_type || 'demand',
             statement: body.statement,
@@ -168,7 +186,11 @@ export function createAppServer(customContext) {
             supporting_excerpt: body.supporting_excerpt || '',
             published_at: body.published_at || null,
             research_methodology: body.research_methodology || 'manual_entry',
-            stance: body.stance || 'supporting'
+            stance: body.stance || 'supporting',
+            retrieved_source_content: body.retrieved_source_content,
+            http_status: body.http_status,
+            retrieved_at: body.retrieved_at,
+            ...retrievalMeta
           });
           const opportunity = ctx.opportunityEngine.getOpportunityById(oppId);
           return sendJson(res, 201, { evidence, opportunity });
@@ -188,9 +210,13 @@ export function createAppServer(customContext) {
         return sendJson(res, 201, { dossier });
       }
 
-      // Phase 7 Research Engine endpoints
+      // Phase 7 & 7.1 Research Engine endpoints
       if (pathname === '/api/research/sources' && method === 'GET') {
         return sendJson(res, 200, { sources: ctx.researchEngine.listSources() });
+      }
+
+      if (pathname === '/api/research/matrix' && method === 'GET') {
+        return sendJson(res, 200, { matrix: ctx.researchEngine.getSourceCapabilityMatrix() });
       }
 
       if (pathname === '/api/research/runs' && method === 'GET') {
@@ -203,6 +229,8 @@ export function createAppServer(customContext) {
         if (!body.query_topic) {
           return sendJson(res, 400, { error: 'query_topic is required to run market discovery.' });
         }
+        // Phase 7.1 Security: Never trust client-supplied approval status or allow_paid_apis boolean.
+        // Only a server-verified approval_request_id is accepted by executeDiscoveryRun.
         const run = await ctx.researchEngine.executeDiscoveryRun({
           query_topic: body.query_topic,
           target_category: body.target_category || 'Browser Based Utilities',
@@ -210,7 +238,9 @@ export function createAppServer(customContext) {
           source_ids: body.source_ids || ['src-hn-algolia', 'src-wp-plugin-api'],
           ingested_findings: body.ingested_findings || [],
           fetch_live_public: Boolean(body.fetch_live_public),
-          allow_paid_apis: Boolean(body.allow_paid_apis)
+          target_url: body.target_url || null,
+          approval_request_id: body.approval_request_id || null,
+          estimated_cost_usd: body.estimated_cost_usd
         });
         return sendJson(res, 201, { run });
       }
@@ -222,6 +252,17 @@ export function createAppServer(customContext) {
         return sendJson(res, 200, {
           evidence: ctx.researchEngine.listAllEvidence({ opportunityId, verificationStatus, evidenceTier })
         });
+      }
+
+      const verifyEvSourceMatch = pathname.match(/^\/api\/research\/evidence\/([^/]+)\/verify-source$/);
+      if (verifyEvSourceMatch && method === 'POST') {
+        const evId = decodeURIComponent(verifyEvSourceMatch[1]);
+        try {
+          const updated = await ctx.researchEngine.verifyExistingEvidenceSource(evId);
+          return sendJson(res, 200, { evidence: updated });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
       }
 
       const reviewEvMatch = pathname.match(/^\/api\/research\/evidence\/([^/]+)$/);
@@ -380,7 +421,10 @@ export function createAppServer(customContext) {
           title: body.title,
           description: body.description || '',
           financial_commitment_usd: body.financial_commitment_usd ?? 0,
-          is_public_action: body.is_public_action ?? true
+          is_public_action: body.is_public_action ?? true,
+          authorized_provider_id: body.authorized_provider_id || '',
+          authorization_scope: body.authorization_scope || 'single_action',
+          expires_at: body.expires_at || null
         });
         return sendJson(res, 201, { approval: request });
       }

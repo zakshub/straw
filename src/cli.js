@@ -36,6 +36,16 @@ if (cmd === 'status') {
   for (const item of overview.proactive_intelligence.proactive_action_queue) {
     console.log(`  - [${item.priority} | ${item.type}] ${item.target}: ${item.recommendation}`);
   }
+
+  console.log('\nResearch Source Capability Matrix (Phase 7.1):');
+  for (const m of overview.source_capability_matrix) {
+    console.log(
+      `  - [${m.implementation_status.toUpperCase()} | ${m.cost_tier.toUpperCase()} | Auth: ${m.authentication_requirement}] ${m.source_name} (${m.adapter_key})`
+    );
+  }
+} else if (cmd === 'matrix') {
+  const matrix = ctx.researchEngine.getSourceCapabilityMatrix();
+  console.log(JSON.stringify(matrix, null, 2));
 } else if (cmd === 'export-report') {
   const overview = ctx.getDashboardOverview();
   const outDir = path.resolve(process.cwd(), 'data', 'exports');
@@ -44,6 +54,6 @@ if (cmd === 'status') {
   fs.writeFileSync(jsonPath, JSON.stringify(overview, null, 2), 'utf8');
   console.log(`Exported full STRAW executive snapshot to ${jsonPath}`);
 } else {
-  console.log(`Unknown CLI command: ${cmd}. Supported: status, export-report`);
+  console.log(`Unknown CLI command: ${cmd}. Supported: status, matrix, export-report`);
   process.exitCode = 1;
 }

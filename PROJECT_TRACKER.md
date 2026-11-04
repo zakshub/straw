@@ -36,3 +36,12 @@
   4. [x] Implement legitimate public API collectors (`hn_algolia_api`, `wordpress_plugins_api`) with safe offline fallback and hard financial approval blocks for paid providers (`src-paid-keyword-api`).
   5. [x] Extend `src/public/index.html` and `src/public/app.js` with the `3. Research & Evidence Engine` workspace and manual verification controls.
   6. [x] Verify valid, invalid/unverified, duplicate, stale, and conflicting evidence cases in `tests/straw.test.js`.
+
+## Milestone 4: Research Integrity, Approval Security & Live Connector Validation (Phase 7.1)
+- **Status:** Completed & Verified
+- **Concrete Tasks:**
+  1. [x] **Financial Approval Security:** Removed `allow_paid_apis` bypass; implemented server-side `verifyFinancialAuthorization()` validating status, expiration, action category, authorization scope, provider identity, and spending limit; recorded `authorization_ref` on `research_runs`.
+  2. [x] **Actual Evidence Verification:** Separated URL format checks from content verification (`retrieveAndVerifySourceContent()` / `checkExcerptInSourceContent()`); prevented URL-only manual entries from becoming `verified_evidence` without retrieved content confirmation; flagged fabricated excerpts (`excerpt_mismatch_fabricated`); handled blocked sources (`401`/`403`/`429`) and willingness-to-pay over-inference (`detectUnsupportedWillingnessToPayClaim()`).
+  3. [x] **Research Connector Audit:** Implemented `getSourceCapabilityMatrix()` (`GET /api/research/matrix`) and live public collectors for `hn_algolia_api`, `wordpress_plugins_api`, `github_repos_api`, `reddit_public_json`, and `public_url_inspector`, while explicitly marking `marketplace_directory_inspector` and `paid_search_provider` as `unsupported`.
+  4. [x] **Hacker News Research Quality:** Updated `collectFromHackerNewsAlgolia()` to retrieve verbatim comments (`tags=comment`), store comment URLs, separate story popularity from pain evidence, and treat story-only fallbacks as `pending_review` discovery signals.
+  5. [x] **Testing & Live Validation:** Added comprehensive mocked unit/integration tests and 1 controlled live test against the free Hacker News Algolia endpoint in `tests/straw.test.js`.

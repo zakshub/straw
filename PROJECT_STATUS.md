@@ -18,18 +18,33 @@
 
 ---
 
-## 2. Current Implementation Status (Phases 0–6 Complete & Verified)
+## 2. Current Implementation Status (Phases 0–7.1 Complete & Verified)
 
 | Module / Subsystem | Phase | Status | Implementation File | Verification |
 | :--- | :--- | :--- | :--- | :--- |
-| **SQLite Storage & 12-Table Schema** | Phase 1–4 | **Operational** | `src/db/database.js`, `src/db/seed.js` | Verified via `node --test` |
+| **SQLite Storage & 15-Table Schema** | Phase 1–7.1 | **Operational** | `src/db/database.js`, `src/db/seed.js` | Verified via `node --test` |
 | **Owner Profile & Capability Engine** | Phase 1 | **Operational** | `src/engines/capability-engine.js` | Verified via `node --test` |
 | **Opportunity Discovery, Competitor Matrix, Simulator & Markdown Export** | Phase 1–2 | **Operational** | `src/engines/opportunity-engine.js` | Verified via `node --test` |
-| **Transparent 11-Dimension Scoring Engine** | Phase 1 | **Operational** | `src/engines/scoring-engine.js` | Verified via `node --test` |
+| **Transparent 11-Dimension Scoring Engine** | Phase 1–7.1 | **Operational** | `src/engines/scoring-engine.js` | Verified via `node --test` |
 | **15-Stage Product Execution & Dependency Diagnostics** | Phase 1–3 | **Operational** | `src/engines/execution-engine.js` | Verified via `node --test` |
 | **Growth, Search Clusters, Monetization & Unit Economics** | Phase 1–4 | **Operational** | `src/engines/growth-monetization-engine.js` | Verified via `node --test` |
-| **Human Approval & Financial Control System** | Phase 1 | **Operational** | `src/engines/approval-engine.js` | Verified via `node --test` |
+| **Human Approval & Server-Side Financial Authorization Verifier** | Phase 1 & 7.1 | **Operational** | `src/engines/approval-engine.js` | Verified via `node --test` |
 | **Personal Business Intelligence & Proactive Portfolio Synthesizer** | Phase 1–5 | **Operational** | `src/engines/intelligence-engine.js` | Verified via `node --test` |
-| **Real-World Research, Source Verification & 10-Step Dossier Engine** | Phase 7 | **Operational** | `src/engines/research-engine.js` | Verified via `node --test` |
+| **Real-World Research, Content Verification & Capability Matrix Engine** | Phase 7 & 7.1 | **Operational** | `src/engines/research-engine.js` | Mocked + Controlled Live HN Test |
 | **Replaceable AI Orchestration Layer** | Phase 1–7 | **Operational** | `src/engines/ai-orchestrator.js` | Verified via `node --test` |
-| **Sentinel Light/Dark Business Workspace UI & Hardened Server** | Phase 1–6 | **Operational** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |
+| **Sentinel Light/Dark Business Workspace UI & Hardened Server** | Phase 1–7.1 | **Operational** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |
+
+---
+
+## 3. Phase 7.1 Source Capability Matrix
+
+| Source Name | Adapter Key | Status | Auth Requirement | Cost Tier | Data Actually Retrieved | Evidence Types Supported | Rate Limit | Known Restrictions |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Hacker News Algolia Public Discussion API** | `hn_algolia_api` | `implemented` | `none` | Free | Verbatim `comment_text`, comment `objectID` URL, `story_id`, `story_title`, `created_at`, plus story fallback metadata | `demand`, `audience`, `competitor` | 60 req/min | Story popularity does not prove willingness to pay; story-only hits without comments are `pending_review` discovery signals |
+| **WordPress.org Official Plugin Directory API** | `wordpress_plugins_api` | `implemented` | `none` | Free | Plugin `name`, `slug`, `version`, `short_description`, `active_installs`, `rating`, `num_ratings`, `last_updated` | `competitor`, `audience` | 30 req/min | Free install counts prove ecosystem presence/alternatives only, never willingness to pay |
+| **GitHub Public Repositories & Issues API** | `github_repos_api` | `implemented` | `optional_token` | Free | `full_name`, `html_url`, `description`, `stargazers_count`, `open_issues_count`, `updated_at` | `competitor`, `technical` | 10 req/min | Unauthenticated limit 10 req/min; stars indicate technical alternatives, not commercial willingness to pay |
+| **Reddit Public Discussions JSON Feed** | `reddit_public_json` | `implemented` | `none` | Free | Subreddit `title`, `selftext`, `permalink`, `created_utc`, `num_comments` | `demand`, `audience` | 10 req/min | Cloud/datacenter IPs are frequently blocked (`403`/`429`) without OAuth; link-only posts without `selftext` are discovery signals |
+| **Public Competitor Website & Pricing Page Inspector** | `public_url_inspector` | `implemented` | `none` | Free | HTTP status, resolved URL, `<title>`, visible text body, SHA-256 content hash, excerpt verification | `pricing`, `competitor`, `demand` | 20 req/min | Requires `target_url`; JS-only SPAs or Cloudflare challenges (`403`/`429`) are flagged for manual review |
+| **W3C & Regulatory Normative Specifications** | `public_url_inspector` | `implemented` | `none` | Free | Full public HTML specification text, document title, HTTP status, excerpt verification | `demand`, `technical`, `risk` | 30 req/min | Requires `target_url` pointing to public specification URI |
+| **Public Ecosystem Marketplaces (Chrome Web Store / Figma / Product Hunt)** | `marketplace_directory_inspector` | `unsupported` | `oauth_or_browser_session` | Free | None (automated search disabled; individual public URLs can use `public_url_inspector`) | `competitor`, `customer_reviews` | 0 req/min | Product Hunt v2 requires OAuth token; Chrome Web Store & Figma Community block automated search scraping |
+| **Commercial Search Trend & Keyword Volume API (DataForSEO / Brave Paid)** | `paid_search_provider` | `unsupported` | `paid_api_key_and_owner_approval` | Paid | None until commercial API credentials and server-side approved `approval_request_id` are provided | `demand` | 30 req/min | Hard-locked by `ApprovalEngine.verifyFinancialAuthorization()` |

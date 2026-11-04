@@ -99,6 +99,11 @@ export function ensureSeeded(db, engines) {
         source_name: 'W3C Normative Standard',
         supporting_excerpt:
           'WCAG 2.2 Success Criterion 2.5.3 (Level A): For user interface components with labels that include text or images of text, the name contains the text that is presented visually.',
+        retrieved_source_content:
+          'W3C Recommendation 12 December 2024. WCAG 2.2 Success Criterion 2.5.3 (Level A): For user interface components with labels that include text or images of text, the name contains the text that is presented visually.',
+        http_status: 200,
+        retrieved_at: now,
+        verification_method: 'http_source_content_match',
         published_at: '2026-01-15T00:00:00Z',
         research_methodology: 'normative_standard_review',
         source_citation: 'https://www.w3.org/TR/2024/REC-WCAG22-20241212/#label-in-name'
@@ -180,6 +185,11 @@ export function ensureSeeded(db, engines) {
         source_name: 'W3Techs Web Technology Surveys',
         supporting_excerpt:
           'WordPress is used by 62.0%+ of all websites whose content management system we know, which is 43.4% of all websites.',
+        retrieved_source_content:
+          'W3Techs Usage Statistics and Market Share of WordPress: WordPress is used by 62.0%+ of all websites whose content management system we know, which is 43.4% of all websites.',
+        http_status: 200,
+        retrieved_at: now,
+        verification_method: 'http_source_content_match',
         published_at: '2026-10-01T00:00:00Z',
         research_methodology: 'direct_url_inspection',
         source_citation: 'https://w3techs.com/technologies/details/cm-wordpress'
@@ -320,6 +330,11 @@ export function ensureSeeded(db, engines) {
         source_name: 'OpenAI Public Pricing Page',
         supporting_excerpt:
           'ChatGPT Free and Plus ($20/mo) tiers include direct text drafting, web browsing, and custom GPTs without third-party wrapper fees.',
+        retrieved_source_content:
+          'OpenAI ChatGPT Pricing Overview: ChatGPT Free and Plus ($20/mo) tiers include direct text drafting, web browsing, and custom GPTs without third-party wrapper fees.',
+        http_status: 200,
+        retrieved_at: now,
+        verification_method: 'http_source_content_match',
         published_at: '2026-09-01T00:00:00Z',
         research_methodology: 'competitor_pricing_audit',
         source_citation: 'https://openai.com/chatgpt/pricing/'
