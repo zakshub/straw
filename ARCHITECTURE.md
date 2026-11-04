@@ -33,8 +33,10 @@
 │   │   └── app.js                    # Interactive client controller for all 7 operational workspaces
 │   ├── server.js                     # REST API + Static Workspace HTTP Server
 │   └── cli.js                        # Diagnostic and audit CLI entry point
+├── scripts/
+│   └── run-live-tests.js             # Phase 7.2: Separated Live External API Test Runner (`npm run test:live`)
 └── tests/
-    └── straw.test.js                 # End-to-end acceptance test suite across all engines and HTTP endpoints
+    └── straw.test.js                 # Deterministic offline acceptance test suite (`npm test`)
 ```
 
 ---

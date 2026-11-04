@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test tests/*.test.js",
+    "test": "node --test tests/straw.test.js",
+    "test:live": "node scripts/run-live-tests.js",
     "audit:db": "node src/cli.js status"
   },
   "author": "Zak (zakshub)",

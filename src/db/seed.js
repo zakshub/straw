@@ -1,8 +1,20 @@
 import { DEFAULT_OWNER_CAPABILITIES } from '../engines/capability-engine.js';
+import { computeContentHash, isValidSha256Hex } from '../engines/research-engine.js';
 
 export function ensureSeeded(db, engines) {
   const existingProfile = db.prepare('SELECT id FROM owner_profile WHERE id = 1').get();
   if (existingProfile) {
+    // Phase 7.2 migration: Upgrade any legacy 32-char source_content_hash values to full 64-char SHA-256 hex digests
+    const legacyRows = db
+      .prepare("SELECT id, source_content_hash, supporting_excerpt, statement FROM market_evidence WHERE source_content_hash != ''")
+      .all();
+    const updateStmt = db.prepare('UPDATE market_evidence SET source_content_hash = ? WHERE id = ?');
+    for (const r of legacyRows) {
+      if (!isValidSha256Hex(r.source_content_hash)) {
+        const fullDigest = computeContentHash(r.supporting_excerpt || r.statement);
+        updateStmt.run(fullDigest, r.id);
+      }
+    }
     return { seeded: false };
   }
 

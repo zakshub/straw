@@ -43,8 +43,12 @@ export class ApprovalEngine {
     is_public_action = true,
     authorized_provider_id = '',
     authorization_scope = '',
-    expires_at = null
+    expires_at = null,
+    status
   }) {
+    if (status !== undefined && status !== 'pending') {
+      throw new Error("Security violation: Client cannot create a pre-approved authorization. All requests must start as 'pending'.");
+    }
     const id = `appr-${crypto.randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
 
@@ -139,6 +143,7 @@ export class ApprovalEngine {
     requiredProviderIds = [],
     requiredScope = 'paid_research_execution',
     requiredActionCategories = ['spend_money', 'purchase_service'],
+    requestedOpportunityId = null,
     requestedCostUsd = 0,
     now = new Date()
   }) {
@@ -202,6 +207,19 @@ export class ApprovalEngine {
       };
     }
 
+    if (
+      record.entity_type === 'opportunity' &&
+      record.entity_id &&
+      record.entity_id !== 'manual' &&
+      record.entity_id !== requestedOpportunityId
+    ) {
+      return {
+        authorized: false,
+        code: 'MISMATCHED_SCOPE_OR_PROVIDER',
+        reason: `Authorization record "${record.id}" is scoped to opportunity "${record.entity_id}" and cannot be used for "${requestedOpportunityId || 'standalone'}".`
+      };
+    }
+
     const approvedProviders = (record.authorized_provider_id || '')
       .split(',')
       .map((s) => s.trim())
@@ -217,13 +235,33 @@ export class ApprovalEngine {
       }
     }
 
+    // Prevent reusing an already-consumed single-execution authorization or exceeding cumulative spend
+    const usage = this.db
+      .prepare(
+        `SELECT COUNT(*) AS run_count, COALESCE(SUM(estimated_cost_usd), 0) AS total_spent
+         FROM research_runs
+         WHERE authorization_ref = ? AND status != 'blocked_approval'`
+      )
+      .get(record.id);
+
+    const priorRunCount = Number(usage?.run_count) || 0;
+    const priorSpentUsd = Number(usage?.total_spent) || 0;
+
+    if (priorRunCount > 0) {
+      return {
+        authorized: false,
+        code: 'APPROVAL_ALREADY_USED',
+        reason: `Authorization record "${record.id}" has already been consumed by a prior research run and cannot be reused.`
+      };
+    }
+
     const approvedLimit = Number(record.financial_commitment_usd) || 0;
     const requestedSpend = Number(requestedCostUsd) || 0;
-    if (requestedSpend <= 0 || requestedSpend > approvedLimit) {
+    if (requestedSpend <= 0 || priorSpentUsd + requestedSpend > approvedLimit) {
       return {
         authorized: false,
         code: 'EXCEEDED_SPENDING_LIMIT',
-        reason: `Requested spend ($${requestedSpend} USD) exceeds approved financial limit ($${approvedLimit} USD) on authorization "${record.id}".`
+        reason: `Requested spend ($${requestedSpend} USD) exceeds remaining approved financial limit ($${approvedLimit - priorSpentUsd} USD) on authorization "${record.id}".`
       };
     }
 

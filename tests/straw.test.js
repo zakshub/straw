@@ -5,7 +5,15 @@ import { createAppServer } from '../src/server.js';
 import {
   verifyAndClassifyEvidence,
   retrieveAndVerifySourceContent,
-  detectUnsupportedWillingnessToPayClaim
+  detectUnsupportedWillingnessToPayClaim,
+  extractValidPublicUrl,
+  isPrivateOrReservedIp,
+  validatePublicTargetWithDns,
+  safePublicFetch,
+  computeContentHash,
+  computeEvidenceFingerprint,
+  isValidSha256Hex,
+  MAX_SOURCE_RESPONSE_BYTES
 } from '../src/engines/research-engine.js';
 
 test('1. Owner Profile & Capability Engine loads 10 core capabilities and computes capability fit & learning cost', () => {
@@ -223,7 +231,10 @@ test('2. Milestone 2 — Actual Evidence Verification: URL format vs content ver
   assert.equal(realVerified.verification_status, 'verified');
   assert.equal(realVerified.verification_method, 'http_content_match');
   assert.equal(realVerified.excerpt_verified_in_source, 1);
-  assert.ok(realVerified.source_content_hash.length === 32);
+  assert.equal(realVerified.source_content_hash.length, 64, 'source_content_hash must be a full 64-char SHA-256 hex digest');
+  assert.match(realVerified.source_content_hash, /^[a-f0-9]{64}$/);
+  assert.equal(realVerified.content_fingerprint.length, 24, 'content_fingerprint must remain a separate 24-char deduplication key');
+  assert.notEqual(realVerified.content_fingerprint, realVerified.source_content_hash);
 
   const updated = ctx.opportunityEngine.getOpportunityById(opportunity.id);
   const demandDimAfter = updated.score_breakdown.dimensions.find((d) => d.key === 'demand_evidence');
@@ -415,6 +426,53 @@ test('3. Milestone 1 — Financial Approval Security: Paid API bypass prevention
   assert.equal(authorizedRun.authorization_ref, validApproval.id);
   assert.equal(authorizedRun.status, 'partial');
   assert.ok(authorizedRun.execution_notes.includes('UNSUPPORTED CONNECTOR'));
+
+  // 10. Phase 7.2 Req 4.2: Attempt to REUSE the same single-use approval_request_id on a second run must be blocked!
+  const reuseAttempt = await ctx.researchEngine.executeDiscoveryRun({
+    query_topic: 'second run reusing consumed approval',
+    source_ids: ['src-paid-keyword-api'],
+    approval_request_id: validApproval.id,
+    estimated_cost_usd: 5
+  });
+  assert.equal(reuseAttempt.status, 'blocked_approval');
+  assert.equal(reuseAttempt.authorization_error_code, 'APPROVAL_ALREADY_USED');
+
+  // 11. Phase 7.2 Req 4.1: Caller cannot create a pre-approved request directly via ApprovalEngine.createRequest
+  assert.throws(() => {
+    ctx.approvalEngine.createRequest({
+      entity_type: 'system',
+      entity_id: 'src-paid-keyword-api',
+      action_category: 'spend_money',
+      title: 'Forged pre-approved request',
+      description: 'Client trying to set status=approved at creation time',
+      financial_commitment_usd: 100,
+      status: 'approved'
+    });
+  }, /Client cannot create a pre-approved authorization/);
+
+  // 12. Phase 7.2 Req 4.2: Opportunity-scoped approval cannot be used for a different opportunity_id
+  const oppScopedApproval = ctx.approvalEngine.createRequest({
+    entity_type: 'opportunity',
+    entity_id: 'opp-a11y-design-kit',
+    action_category: 'spend_money',
+    title: 'Scoped to opp-a11y-design-kit only',
+    description: 'Opportunity-specific paid research authorization',
+    financial_commitment_usd: 25,
+    authorized_provider_id: 'src-paid-keyword-api',
+    authorization_scope: 'paid_research_execution',
+    expires_at: '2027-12-31T23:59:59Z'
+  });
+  ctx.approvalEngine.decideRequest(oppScopedApproval.id, { decision: 'approved' });
+
+  const wrongOppRun = await ctx.researchEngine.executeDiscoveryRun({
+    query_topic: 'wrong opportunity scope test',
+    opportunity_id: 'opp-ux-flow-simulator',
+    source_ids: ['src-paid-keyword-api'],
+    approval_request_id: oppScopedApproval.id,
+    estimated_cost_usd: 15
+  });
+  assert.equal(wrongOppRun.status, 'blocked_approval');
+  assert.equal(wrongOppRun.authorization_error_code, 'MISMATCHED_SCOPE_OR_PROVIDER');
 });
 
 test('4. Milestone 3 & 4 — Source Capability Matrix, Mocked Connector Response Parsing, HN Comment Extraction & Error Handling', async () => {
@@ -834,6 +892,24 @@ test('6. Server REST API Integration: Direct API bypass attempts fail, Source Ca
     assert.equal(paidBypassJson.run.status, 'blocked_approval');
     assert.equal(paidBypassJson.run.authorization_ref, null);
 
+    // 2b. Prove client CANNOT create its own pre-approved authorization via POST /api/approvals
+    const forgedApprovalRes = await fetch(`${baseUrl}/api/approvals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entity_type: 'system',
+        entity_id: 'src-paid-keyword-api',
+        action_category: 'spend_money',
+        title: 'Client self-approved attempt',
+        description: 'Attempting to pass status=approved in POST /api/approvals',
+        financial_commitment_usd: 50,
+        status: 'approved'
+      })
+    });
+    assert.equal(forgedApprovalRes.status, 400);
+    const forgedApprovalJson = await forgedApprovalRes.json();
+    assert.ok(forgedApprovalJson.error.includes('Client cannot create a pre-approved'));
+
     // 3. Execute a Discovery Run with verified content finding
     const excerpt = 'Over 45 comments discussing the pain of undocumented loading and error states in Figma handoffs.';
     const runRes = await fetch(`${baseUrl}/api/research/runs`, {
@@ -880,27 +956,361 @@ test('6. Server REST API Integration: Direct API bypass attempts fail, Source Ca
   }
 });
 
-test('7. [CONTROLLED LIVE PUBLIC ENDPOINT TEST] Hacker News Algolia Free Public API live comment retrieval & content verification', async () => {
+test('7. Phase 7.2 — SSRF Prevention, IPv6/Obfuscated IPs, Redirect Attacks, DNS Rebinding, Response Size Limits & 64-Char SHA-256 Validation', async () => {
   const ctx = createStrawContext({ dbPath: ':memory:' });
 
-  // Execute ONE controlled live request against the free public Hacker News Algolia comment search API
-  const liveRun = await ctx.researchEngine.executeDiscoveryRun({
-    query_topic: 'wcag accessibility',
-    opportunity_id: 'opp-a11y-design-kit',
-    source_ids: ['src-hn-algolia'],
-    fetch_live_public: true
-  });
+  // 1. Direct URL & IP validation: Private IPv4, Loopback, Link-Local, Cloud Metadata, CGNAT, Reserved, Obfuscated IPs, IPv6, and Internal Hostnames
+  const blockedUrls = [
+    // Localhost & internal domains
+    'http://localhost/admin',
+    'http://localhost:8080/api',
+    'https://sub.localhost/secret',
+    'http://metadata.google.internal/computeMetadata/v1/',
+    'http://db.internal/status',
+    'http://printer.local/config',
+    'http://intranet/admin', // single-label hostname without public TLD
+    // IPv4 Loopback & Unspecified
+    'http://127.0.0.1/secret',
+    'http://127.0.0.53:8053/dns',
+    'http://127.255.255.254/',
+    'http://0.0.0.0:3000/',
+    // Private IPv4 (RFC 1918)
+    'http://10.0.0.1/internal',
+    'http://10.255.255.1/',
+    'http://172.16.0.1/admin',
+    'http://172.31.255.255/admin',
+    'http://192.168.0.1/',
+    'http://192.168.1.254/router',
+    // Link-Local & Cloud Metadata (AWS/GCP/Azure 169.254.169.254)
+    'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+    'http://169.254.1.1/',
+    // Carrier-Grade NAT & Reserved / Multicast / Broadcast
+    'http://100.64.0.1/',
+    'http://100.127.255.254/',
+    'http://192.0.2.1/',
+    'http://198.18.0.1/',
+    'http://224.0.0.1/',
+    'http://255.255.255.255/',
+    // Obfuscated IPv4 notations (decimal integer, hex, octal, short IPv4)
+    'http://2130706433/admin', // 127.0.0.1 in decimal
+    'http://0x7f000001/admin', // 127.0.0.1 in hex
+    'http://0177.0.0.1/admin', // 127.0.0.1 in octal
+    'http://127.1/admin',      // short IPv4
+    // IPv6 Loopback, Unspecified, Link-Local, Unique Local (ULA), Multicast, IPv4-mapped IPv6, NAT64, 6to4
+    'http://[::1]:8080/admin',
+    'http://[0:0:0:0:0:0:0:1]/',
+    'http://[::]/',
+    'http://[fe80::1]/',
+    'http://[fe80::1%25eth0]/',
+    'http://[fc00::1]/',
+    'http://[fd12:3456:789a::1]/',
+    'http://[ff02::1]/',
+    'http://[::ffff:127.0.0.1]/',
+    'http://[::ffff:10.0.0.1]/',
+    'http://[::ffff:169.254.169.254]/latest/meta-data/',
+    'http://[64:ff9b::127.0.0.1]/',
+    'http://[2002:7f00:0001::1]/',
+    // Non-HTTP/HTTPS protocols
+    'file:///etc/passwd',
+    'ftp://ftp.example.com/pub/file.txt',
+    'gopher://127.0.0.1:6379/_INFO',
+    'javascript:alert(1)'
+  ];
 
-  assert.equal(liveRun.status, 'completed');
-  assert.ok(
-    liveRun.findings_created_count >= 1,
-    `Expected at least 1 live finding from HN Algolia API, got ${liveRun.findings_created_count}. Notes: ${liveRun.execution_notes}`
+  for (const badUrl of blockedUrls) {
+    const check = extractValidPublicUrl(badUrl);
+    assert.equal(check.valid, false, `Expected URL to be rejected: ${badUrl}`);
+
+    // Also confirm retrieveAndVerifySourceContent refuses to call fetchImpl for any blocked URL
+    let fetchCalled = false;
+    const res = await retrieveAndVerifySourceContent(
+      {
+        source_url: badUrl,
+        supporting_excerpt: 'Should never be fetched from internal network.',
+        evidence_tier: 'verified_evidence'
+      },
+      {
+        fetchImpl: async () => {
+          fetchCalled = true;
+          throw new Error('fetchImpl must NEVER be invoked for SSRF-blocked URLs');
+        }
+      }
+    );
+    assert.equal(fetchCalled, false, `fetchImpl must not be called for ${badUrl}`);
+    assert.equal(res.evidence_tier, 'assumption');
+    assert.equal(res.verification_status, 'downgraded_unverified');
+    assert.equal(res.excerpt_verified_in_source, 0);
+  }
+
+  // Verify public IPv4 (e.g., 172.32.0.1 outside 172.16.0.0/12, 93.184.216.34) and public IPv6 (2606:2800:220:1:248:1893:25c8:1946) are allowed
+  assert.equal(isPrivateOrReservedIp('93.184.216.34').blocked, false);
+  assert.equal(isPrivateOrReservedIp('172.32.0.1').blocked, false);
+  assert.equal(isPrivateOrReservedIp('2606:2800:220:1:248:1893:25c8:1946').blocked, false);
+
+  // 2. Redirect Attack Prevention:
+  // 2a. Public URL redirecting (302) to 127.0.0.1 or 169.254.169.254 or [::1] or file:///etc/passwd must be blocked BEFORE following the redirect!
+  const redirectTargets = [
+    'http://127.0.0.1:8080/internal-admin',
+    'http://169.254.169.254/latest/meta-data/',
+    'http://[::1]:3000/private',
+    'http://10.0.0.5/secret',
+    'file:///etc/passwd'
+  ];
+
+  for (const maliciousRedirect of redirectTargets) {
+    let hopCount = 0;
+    const redirectResult = await retrieveAndVerifySourceContent(
+      {
+        source_url: 'https://public-redirect-test.example.com/article',
+        supporting_excerpt: 'Some expected excerpt text that should not be verified.',
+        evidence_tier: 'verified_evidence'
+      },
+      {
+        dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+        fetchImpl: async (url, opts) => {
+          hopCount += 1;
+          assert.equal(opts.redirect, 'manual', 'safePublicFetch must enforce redirect: "manual"');
+          if (hopCount === 1) {
+            return {
+              status: 302,
+              ok: false,
+              headers: new Map([['location', maliciousRedirect]]),
+              text: async () => ''
+            };
+          }
+          throw new Error(`Redirect to ${maliciousRedirect} should have been blocked before hop 2!`);
+        }
+      }
+    );
+
+    assert.equal(hopCount, 1, `Must block redirect to ${maliciousRedirect} after first hop without fetching target`);
+    assert.equal(redirectResult.verification_method, 'ssrf_blocked');
+    assert.equal(redirectResult.verification_status, 'downgraded_unverified');
+    assert.equal(redirectResult.evidence_tier, 'assumption');
+  }
+
+  // 2b. Safe redirect to another valid public HTTPS URL succeeds and records final_source_url
+  let safeRedirectHops = 0;
+  const safeRedirectRes = await retrieveAndVerifySourceContent(
+    {
+      source_url: 'https://www.w3.org/TR/old-path',
+      supporting_excerpt: 'Verified public documentation after safe redirect.',
+      evidence_tier: 'verified_evidence'
+    },
+    {
+      dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      fetchImpl: async (url) => {
+        safeRedirectHops += 1;
+        if (safeRedirectHops === 1) {
+          return {
+            status: 301,
+            ok: false,
+            headers: new Map([['location', 'https://www.w3.org/TR/new-path']]),
+            text: async () => ''
+          };
+        }
+        return {
+          status: 200,
+          ok: true,
+          headers: new Map([['content-length', '80']]),
+          text: async () => '<html><body>Verified public documentation after safe redirect.</body></html>'
+        };
+      }
+    }
+  );
+  assert.equal(safeRedirectHops, 2);
+  assert.equal(safeRedirectRes.verification_status, 'verified');
+  assert.equal(safeRedirectRes.original_source_url, 'https://www.w3.org/TR/old-path');
+  assert.equal(safeRedirectRes.final_source_url, 'https://www.w3.org/TR/new-path');
+  assert.match(safeRedirectRes.source_content_hash, /^[a-f0-9]{64}$/);
+
+  // 2c. Excessive redirect loop (> MAX_SAFE_REDIRECTS) is aborted cleanly
+  const redirectLoopRes = await retrieveAndVerifySourceContent(
+    {
+      source_url: 'https://www.w3.org/TR/loop-1',
+      supporting_excerpt: 'Loop test excerpt text here.',
+      evidence_tier: 'verified_evidence'
+    },
+    {
+      dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      fetchImpl: async (url) => ({
+        status: 302,
+        ok: false,
+        headers: new Map([['location', 'https://www.w3.org/TR/loop-next']]),
+        text: async () => ''
+      })
+    }
+  );
+  assert.equal(redirectLoopRes.verification_method, 'http_retrieval_failed');
+  assert.equal(redirectLoopRes.verification_status, 'downgraded_unverified');
+
+  // 3. DNS Resolution & DNS Rebinding Prevention:
+  // 3a. Domain that resolves to a private IP (e.g., 10.0.0.42 or mixed public + 192.168.1.10) is blocked before fetch
+  let dnsPrivateFetchCalled = false;
+  const dnsPrivateRes = await retrieveAndVerifySourceContent(
+    {
+      source_url: 'https://internal-alias.example.com/status',
+      supporting_excerpt: 'Internal status page content.',
+      evidence_tier: 'verified_evidence'
+    },
+    {
+      dnsLookup: async () => [
+        { address: '93.184.216.34', family: 4 },
+        { address: '192.168.1.10', family: 4 } // Mixed record containing private IP must be rejected!
+      ],
+      fetchImpl: async () => {
+        dnsPrivateFetchCalled = true;
+        return { status: 200, ok: true, text: async () => 'secret' };
+      }
+    }
+  );
+  assert.equal(dnsPrivateFetchCalled, false, 'Must not connect when DNS resolves to any private IP');
+  assert.equal(dnsPrivateRes.verification_method, 'ssrf_blocked');
+  assert.equal(dnsPrivateRes.verification_status, 'downgraded_unverified');
+
+  // 3b. DNS Rebinding Attack Scenario 1: First lookup returns public IP 93.184.216.34, second lookup returns 127.0.0.1
+  let rebindLookupCall = 0;
+  let rebindFetchCalled = false;
+  const rebindToLoopbackRes = await retrieveAndVerifySourceContent(
+    {
+      source_url: 'https://rebind-attacker.example.com/steal',
+      supporting_excerpt: 'Attempting DNS rebinding to loopback.',
+      evidence_tier: 'verified_evidence'
+    },
+    {
+      dnsLookup: async () => {
+        rebindLookupCall += 1;
+        if (rebindLookupCall === 1) {
+          return [{ address: '93.184.216.34', family: 4 }];
+        }
+        return [{ address: '127.0.0.1', family: 4 }];
+      },
+      fetchImpl: async () => {
+        rebindFetchCalled = true;
+        return { status: 200, ok: true, text: async () => 'secret' };
+      }
+    }
+  );
+  assert.equal(rebindLookupCall, 2);
+  assert.equal(rebindFetchCalled, false, 'Must abort before fetch when DNS rebinds to loopback');
+  assert.equal(rebindToLoopbackRes.verification_method, 'ssrf_dns_rebinding_blocked');
+  assert.equal(rebindToLoopbackRes.verification_status, 'downgraded_unverified');
+
+  // 3c. DNS Rebinding Attack Scenario 2: First lookup returns 93.184.216.34, second lookup switches to a completely disjoint IP 198.51.100.99
+  let disjointLookupCall = 0;
+  await assert.rejects(
+    async () => {
+      await validatePublicTargetWithDns('https://fast-flux-rebind.example.com/data', {
+        dnsLookup: async () => {
+          disjointLookupCall += 1;
+          return disjointLookupCall === 1
+            ? [{ address: '93.184.216.34', family: 4 }]
+            : [{ address: '93.184.216.99', family: 4 }];
+        }
+      });
+    },
+    (err) => err.code === 'ERR_SSRF_DNS_REBINDING'
   );
 
-  const firstFinding = liveRun.created_findings[0];
-  assert.ok(firstFinding.source_url.startsWith('https://news.ycombinator.com/item?id='));
-  assert.equal(firstFinding.http_status, 200);
-  assert.ok(firstFinding.retrieved_at, 'Live finding must record retrieved_at timestamp');
-  assert.ok(firstFinding.source_content_hash && firstFinding.source_content_hash.length === 32, 'Live finding must record SHA-256 source_content_hash');
-  assert.ok(firstFinding.supporting_excerpt.length >= 15, 'Live finding must contain actual retrieved excerpt');
+  // 4. Response Size Limits (Oversized Response Prevention):
+  // 4a. Reject response declaring Content-Length > MAX_SOURCE_RESPONSE_BYTES (512 KB)
+  const oversizedHeaderRes = await retrieveAndVerifySourceContent(
+    {
+      source_url: 'https://www.w3.org/TR/huge-file',
+      supporting_excerpt: 'Checking oversized Content-Length rejection.',
+      evidence_tier: 'verified_evidence'
+    },
+    {
+      dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      fetchImpl: async () => ({
+        status: 200,
+        ok: true,
+        headers: new Map([['content-length', String(MAX_SOURCE_RESPONSE_BYTES + 1024)]]),
+        text: async () => 'small body but huge content-length header'
+      })
+    }
+  );
+  assert.equal(oversizedHeaderRes.verification_method, 'response_too_large');
+  assert.equal(oversizedHeaderRes.verification_status, 'downgraded_unverified');
+  assert.equal(oversizedHeaderRes.evidence_tier, 'assumption');
+
+  // 4b. Reject response whose actual streamed/buffered body exceeds MAX_SOURCE_RESPONSE_BYTES without Content-Length header
+  const hugeBodyString = 'A'.repeat(MAX_SOURCE_RESPONSE_BYTES + 2048);
+  const oversizedBodyRes = await retrieveAndVerifySourceContent(
+    {
+      source_url: 'https://www.w3.org/TR/huge-stream',
+      supporting_excerpt: 'AAAAChecking oversized body rejection.',
+      evidence_tier: 'verified_evidence'
+    },
+    {
+      dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      fetchImpl: async () => ({
+        status: 200,
+        ok: true,
+        headers: new Map(),
+        text: async () => hugeBodyString
+      })
+    }
+  );
+  assert.equal(oversizedBodyRes.verification_method, 'response_too_large');
+  assert.equal(oversizedBodyRes.verification_status, 'downgraded_unverified');
+
+  // 5. Internal Network Error Redaction:
+  // Confirm internal IP addresses and raw socket error codes (ECONNREFUSED 10.0.0.8:6379) are never exposed in verification notes
+  const internalErrRes = await retrieveAndVerifySourceContent(
+    {
+      source_url: 'https://www.w3.org/TR/socket-error',
+      supporting_excerpt: 'Testing error sanitization.',
+      evidence_tier: 'verified_evidence'
+    },
+    {
+      dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      fetchImpl: async () => {
+        throw new Error('connect ECONNREFUSED 10.0.0.8:6379 internal redis cluster');
+      }
+    }
+  );
+  assert.ok(
+    !internalErrRes.source_citation.includes('10.0.0.8'),
+    'Internal IP must be redacted from error citation'
+  );
+  assert.ok(
+    !internalErrRes.source_citation.includes('ECONNREFUSED'),
+    'Raw socket error code ECONNREFUSED must be redacted'
+  );
+
+  // 6. Content Hash Validation (Phase 7.2 Requirement 2):
+  // Confirm computeContentHash produces a full 64-character SHA-256 hex digest and isValidSha256Hex rejects truncated 32-char hashes
+  const sampleDigest = computeContentHash('Sample source body content for SHA-256 validation');
+  assert.equal(sampleDigest.length, 64);
+  assert.match(sampleDigest, /^[a-f0-9]{64}$/);
+  assert.equal(isValidSha256Hex(sampleDigest), true);
+  assert.equal(isValidSha256Hex(sampleDigest.slice(0, 32)), false, 'Truncated 32-char hash must be rejected by isValidSha256Hex');
+
+  // Confirm verifyAndClassifyEvidence refuses to mark a finding as verified if only a truncated 32-char source_content_hash is supplied without raw content
+  const truncatedHashCheck = verifyAndClassifyEvidence({
+    claim_type: 'demand',
+    statement: 'Testing truncated hash rejection.',
+    evidence_tier: 'verified_evidence',
+    source_url: 'https://www.w3.org/TR/hash-test',
+    supporting_excerpt: 'Valid excerpt over 15 characters long.',
+    excerpt_verified_in_source: 1,
+    source_content_hash: sampleDigest.slice(0, 32), // Only 32 chars!
+    http_status: 200
+  });
+  assert.notEqual(
+    truncatedHashCheck.verification_status,
+    'verified',
+    'Must not mark evidence as verified when source_content_hash is truncated (< 64 hex chars)'
+  );
+
+  // Confirm computeEvidenceFingerprint remains a separate 24-character deduplication key
+  const dedupFp = computeEvidenceFingerprint({
+    opportunityId: 'opp-a11y-design-kit',
+    normalizedUrl: 'https://www.w3.org/TR/hash-test',
+    statement: 'Testing truncated hash rejection.',
+    claimType: 'demand'
+  });
+  assert.equal(dedupFp.length, 24);
+  assert.notEqual(dedupFp, sampleDigest);
 });

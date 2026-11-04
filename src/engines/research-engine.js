@@ -1,4 +1,10 @@
 import crypto from 'node:crypto';
+import net from 'node:net';
+import dns from 'node:dns';
+
+export const MAX_SOURCE_RESPONSE_BYTES = 512 * 1024; // 512 KB hard cap
+export const MAX_SAFE_REDIRECTS = 3;
+export const DEFAULT_FETCH_TIMEOUT_MS = 5000;
 
 export const DEFAULT_RESEARCH_SOURCES = [
   {
@@ -149,15 +155,245 @@ export const DEFAULT_RESEARCH_SOURCES = [
 
 const DISALLOWED_HOSTNAMES = new Set([
   'localhost',
+  'localhost.localdomain',
+  'ip6-localhost',
+  'ip6-loopback',
   '127.0.0.1',
   '0.0.0.0',
+  '::1',
+  '::',
+  'metadata',
+  'metadata.google.internal',
+  'instance-data',
   'example.com',
   'www.example.com',
   'example.org',
+  'example.net',
   'test.invalid',
   'placeholder.com',
   'fake.url'
 ]);
+
+const RESTRICTED_HOST_SUFFIXES = [
+  '.localhost',
+  '.local',
+  '.localdomain',
+  '.internal',
+  '.intranet',
+  '.corp',
+  '.home',
+  '.lan',
+  '.arpa',
+  '.invalid',
+  '.test',
+  '.example'
+];
+
+/**
+ * Parses an IPv4 dotted-quad string strictly (no leading zeros/octal, exactly 4 octets 0..255).
+ */
+function parseStrictIpv4Octets(ipStr) {
+  const m = String(ipStr).match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return null;
+  const octets = [];
+  for (let i = 1; i <= 4; i++) {
+    const part = m[i];
+    if (part.length > 1 && part.startsWith('0')) {
+      return null; // Reject octal-like leading zeros
+    }
+    const val = Number(part);
+    if (!Number.isInteger(val) || val < 0 || val > 255) return null;
+    octets.push(val);
+  }
+  return octets;
+}
+
+/**
+ * Expands a valid IPv6 string into 8 16-bit unsigned integers (words[0..7]).
+ */
+function expandIpv6Words(ipStr) {
+  let addr = String(ipStr).toLowerCase().trim();
+  if (addr.startsWith('[') && addr.endsWith(']')) {
+    addr = addr.slice(1, -1);
+  }
+  if (!net.isIPv6(addr)) return null;
+
+  // Handle embedded IPv4 at end of IPv6 (e.g. ::ffff:127.0.0.1)
+  const lastColon = addr.lastIndexOf(':');
+  const tail = addr.slice(lastColon + 1);
+  if (tail.includes('.')) {
+    const octets = parseStrictIpv4Octets(tail);
+    if (!octets) return null;
+    const highWord = ((octets[0] << 8) | octets[1]).toString(16);
+    const lowWord = ((octets[2] << 8) | octets[3]).toString(16);
+    addr = `${addr.slice(0, lastColon + 1)}${highWord}:${lowWord}`;
+  }
+
+  const halves = addr.split('::');
+  if (halves.length > 2) return null;
+
+  const leftParts = halves[0] ? halves[0].split(':').filter(Boolean) : [];
+  const rightParts = halves.length === 2 && halves[1] ? halves[1].split(':').filter(Boolean) : [];
+  const missing = 8 - (leftParts.length + rightParts.length);
+  if (halves.length === 1 && missing !== 0) return null;
+  if (halves.length === 2 && missing < 1) return null;
+
+  const fullParts = [...leftParts, ...Array(Math.max(0, missing)).fill('0'), ...rightParts];
+  if (fullParts.length !== 8) return null;
+
+  return fullParts.map((hex) => parseInt(hex, 16));
+}
+
+/**
+ * Phase 7.2 Requirement 1: Determines whether an IPv4 or IPv6 address is private,
+ * loopback, link-local, CGNAT, multicast, broadcast, documentation, or otherwise reserved.
+ */
+export function isPrivateOrReservedIp(rawIp) {
+  if (!rawIp || typeof rawIp !== 'string') {
+    return { blocked: true, reason: 'Empty or invalid IP address.' };
+  }
+
+  let ip = rawIp.trim();
+  if (ip.startsWith('[') && ip.endsWith(']')) {
+    ip = ip.slice(1, -1);
+  }
+
+  if (ip.includes('%')) {
+    return { blocked: true, reason: 'IPv6 zone identifiers are disallowed.' };
+  }
+
+  const octets = parseStrictIpv4Octets(ip);
+  if (octets) {
+    const [a, b, c] = octets;
+    if (a === 0) return { blocked: true, reason: 'Unspecified/current network (0.0.0.0/8) is blocked.' };
+    if (a === 10) return { blocked: true, reason: 'Private IPv4 range (10.0.0.0/8) is blocked.' };
+    if (a === 100 && b >= 64 && b <= 127) {
+      return { blocked: true, reason: 'Carrier-Grade NAT shared range (100.64.0.0/10) is blocked.' };
+    }
+    if (a === 127) return { blocked: true, reason: 'Loopback IPv4 range (127.0.0.0/8) is blocked.' };
+    if (a === 169 && b === 254) {
+      return { blocked: true, reason: 'Link-local / cloud metadata range (169.254.0.0/16) is blocked.' };
+    }
+    if (a === 172 && b >= 16 && b <= 31) {
+      return { blocked: true, reason: 'Private IPv4 range (172.16.0.0/12) is blocked.' };
+    }
+    if (a === 192 && b === 0 && c === 0) {
+      return { blocked: true, reason: 'IETF reserved range (192.0.0.0/24) is blocked.' };
+    }
+    if (a === 192 && b === 0 && c === 2) {
+      return { blocked: true, reason: 'TEST-NET-1 documentation range (192.0.2.0/24) is blocked.' };
+    }
+    if (a === 192 && b === 88 && c === 99) {
+      return { blocked: true, reason: '6to4 relay anycast range (192.88.99.0/24) is blocked.' };
+    }
+    if (a === 192 && b === 168) {
+      return { blocked: true, reason: 'Private IPv4 range (192.168.0.0/16) is blocked.' };
+    }
+    if (a === 198 && (b === 18 || b === 19)) {
+      return { blocked: true, reason: 'Benchmark testing range (198.18.0.0/15) is blocked.' };
+    }
+    if (a === 198 && b === 51 && c === 100) {
+      return { blocked: true, reason: 'TEST-NET-2 documentation range (198.51.100.0/24) is blocked.' };
+    }
+    if (a === 203 && b === 0 && c === 113) {
+      return { blocked: true, reason: 'TEST-NET-3 documentation range (203.0.113.0/24) is blocked.' };
+    }
+    if (a >= 224) {
+      return { blocked: true, reason: 'Multicast / reserved / broadcast IPv4 range (224.0.0.0/3) is blocked.' };
+    }
+    return { blocked: false, reason: 'Public IPv4 address.' };
+  }
+
+  if (net.isIPv6(ip)) {
+    const w = expandIpv6Words(ip);
+    if (!w) {
+      return { blocked: true, reason: 'Malformed IPv6 address.' };
+    }
+
+    const allZero = w.every((word) => word === 0);
+    if (allZero) {
+      return { blocked: true, reason: 'Unspecified IPv6 address (::) is blocked.' };
+    }
+
+    const isLoopback = w.slice(0, 7).every((word) => word === 0) && w[7] === 1;
+    if (isLoopback) {
+      return { blocked: true, reason: 'Loopback IPv6 address (::1) is blocked.' };
+    }
+
+    // IPv4-mapped (::ffff:0:0/96) or IPv4-compatible (::/96)
+    const isIpv4Mapped = w.slice(0, 5).every((word) => word === 0) && w[5] === 0xffff;
+    const isIpv4Compatible = w.slice(0, 6).every((word) => word === 0);
+    const isNat64 = w[0] === 0x0064 && w[1] === 0xff9b;
+
+    if (isIpv4Mapped || isIpv4Compatible || isNat64) {
+      const embeddedIpv4 = `${(w[6] >> 8) & 0xff}.${w[6] & 0xff}.${(w[7] >> 8) & 0xff}.${w[7] & 0xff}`;
+      const v4Check = isPrivateOrReservedIp(embeddedIpv4);
+      if (v4Check.blocked) {
+        return { blocked: true, reason: `Embedded IPv4 in IPv6 (${embeddedIpv4}) is blocked: ${v4Check.reason}` };
+      }
+      return { blocked: false, reason: 'Public IPv4-mapped IPv6 address.' };
+    }
+
+    // 6to4 (2002::/16) embeds IPv4 in words[1] and words[2]
+    if (w[0] === 0x2002) {
+      const embedded6to4 = `${(w[1] >> 8) & 0xff}.${w[1] & 0xff}.${(w[2] >> 8) & 0xff}.${w[2] & 0xff}`;
+      const v4Check = isPrivateOrReservedIp(embedded6to4);
+      if (v4Check.blocked) {
+        return { blocked: true, reason: `6to4 embedded IPv4 (${embedded6to4}) is blocked: ${v4Check.reason}` };
+      }
+    }
+
+    // Unique Local IPv6 (fc00::/7 -> fc00::/8 and fd00::/8)
+    if ((w[0] & 0xfe00) === 0xfc00) {
+      return { blocked: true, reason: 'Unique Local IPv6 address (fc00::/7) is blocked.' };
+    }
+
+    // Link-Local IPv6 (fe80::/10)
+    if ((w[0] & 0xffc0) === 0xfe80) {
+      return { blocked: true, reason: 'Link-local IPv6 address (fe80::/10) is blocked.' };
+    }
+
+    // Site-Local IPv6 (fec0::/10)
+    if ((w[0] & 0xffc0) === 0xfec0) {
+      return { blocked: true, reason: 'Site-local IPv6 address (fec0::/10) is blocked.' };
+    }
+
+    // Multicast IPv6 (ff00::/8)
+    if ((w[0] & 0xff00) === 0xff00) {
+      return { blocked: true, reason: 'Multicast IPv6 address (ff00::/8) is blocked.' };
+    }
+
+    // Documentation IPv6 (2001:db8::/32)
+    if (w[0] === 0x2001 && w[1] === 0x0db8) {
+      return { blocked: true, reason: 'Documentation IPv6 address (2001:db8::/32) is blocked.' };
+    }
+
+    // Teredo (2001:0000::/32) & Benchmarking (2001:0002::/48)
+    if (w[0] === 0x2001 && (w[1] === 0x0000 || (w[1] === 0x0002 && w[2] === 0x0000))) {
+      return { blocked: true, reason: 'Reserved Teredo/Benchmarking IPv6 range is blocked.' };
+    }
+
+    return { blocked: false, reason: 'Public IPv6 address.' };
+  }
+
+  return { blocked: true, reason: 'Unrecognized IP literal format.' };
+}
+
+/**
+ * Detects obfuscated IP hostnames such as decimal integers (2130706433),
+ * hex literals (0x7f000001), octal octets (0177.0.0.1), or shorthand IPv4 (127.1).
+ */
+function isObfuscatedNumericHost(host) {
+  if (/^\d+$/.test(host)) return true;
+  if (/^0x[0-9a-f]+$/i.test(host)) return true;
+  if (/^[0-9a-fx.]+$/i.test(host) && !host.includes(':')) {
+    const parts = host.split('.');
+    if (parts.every((p) => /^(0x[0-9a-f]+|\d+)$/i.test(p))) {
+      return parseStrictIpv4Octets(host) === null;
+    }
+  }
+  return false;
+}
 
 const HIGH_RELIABILITY_DOMAINS = [
   { domain: 'w3.org', score: 0.96, name: 'W3C Normative Standard' },
@@ -193,9 +429,17 @@ export function normalizeTextForVerification(rawText) {
     .trim();
 }
 
+/**
+ * Phase 7.2 Requirement 2: Computes the complete 64-character SHA-256 hexadecimal digest
+ * of retrieved source content. Kept strictly separate from 24-character evidence fingerprints.
+ */
 export function computeContentHash(content) {
   if (!content) return '';
-  return crypto.createHash('sha256').update(String(content)).digest('hex').slice(0, 32);
+  return crypto.createHash('sha256').update(String(content)).digest('hex');
+}
+
+export function isValidSha256Hex(hash) {
+  return typeof hash === 'string' && /^[a-f0-9]{64}$/i.test(hash);
 }
 
 /**
@@ -273,8 +517,9 @@ export function detectUnsupportedWillingnessToPayClaim({ statement = '', claim_t
 }
 
 /**
- * Extracts and validates an HTTP/HTTPS URL format from a string or explicit URL field.
- * Note: This only validates URL syntax/hostname format — NOT actual source verification!
+ * Extracts and validates an HTTP/HTTPS URL format from a string or explicit URL field,
+ * blocking SSRF targets (localhost, private IPv4/IPv6, link-local, obfuscated IPs, internal suffixes).
+ * Note: This validates URL syntax and literal IP/hostname safety — DNS resolution is checked in validatePublicTargetWithDns().
  */
 export function extractValidPublicUrl(rawUrl, fallbackText = '') {
   const candidate = (rawUrl && String(rawUrl).trim()) || '';
@@ -287,27 +532,112 @@ export function extractValidPublicUrl(rawUrl, fallbackText = '') {
     }
   }
 
-  if (!urlStr) return { valid: false, originalUrl: '', normalizedUrl: '', hostname: '', reason: 'Missing source URL.' };
+  if (!urlStr) {
+    return {
+      valid: false,
+      ssrf_blocked: false,
+      originalUrl: '',
+      normalizedUrl: '',
+      hostname: '',
+      reason: 'Missing source URL.'
+    };
+  }
 
   try {
+    // Reject raw IPv4 octal/hex/short notations before WHATWG URL canonicalizes them into 127.0.0.1!
+    const rawHostMatch = urlStr.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/([^/?#]+)/);
+    if (rawHostMatch) {
+      const rawAuthorityHost = rawHostMatch[1].replace(/^.*@/, '').replace(/:\d+$/, '').toLowerCase();
+      if (isObfuscatedNumericHost(rawAuthorityHost)) {
+        return {
+          valid: false,
+          ssrf_blocked: true,
+          originalUrl: urlStr,
+          normalizedUrl: '',
+          hostname: rawAuthorityHost,
+          reason: 'Blocked by SSRF policy: Obfuscated octal/hex/integer IP literal is disallowed.'
+        };
+      }
+    }
+
     const parsed = new URL(urlStr);
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-      return { valid: false, originalUrl: urlStr, normalizedUrl: '', hostname: '', reason: 'URL must use http or https protocol.' };
+      return {
+        valid: false,
+        ssrf_blocked: true,
+        originalUrl: urlStr,
+        normalizedUrl: '',
+        hostname: '',
+        reason: 'URL must use http or https protocol.'
+      };
     }
-    const host = parsed.hostname.toLowerCase();
+
+    if (parsed.username || parsed.password) {
+      return {
+        valid: false,
+        ssrf_blocked: true,
+        originalUrl: urlStr,
+        normalizedUrl: '',
+        hostname: '',
+        reason: 'Blocked by SSRF policy: Embedded URL credentials are disallowed.'
+      };
+    }
+
+    const rawHost = parsed.hostname.toLowerCase().replace(/\.$/, '');
+    const unbracketedHost =
+      rawHost.startsWith('[') && rawHost.endsWith(']') ? rawHost.slice(1, -1) : rawHost;
+
     if (
-      DISALLOWED_HOSTNAMES.has(host) ||
-      !host.includes('.') ||
-      host.endsWith('.local') ||
-      host.endsWith('.invalid') ||
-      host.endsWith('.test')
+      !unbracketedHost ||
+      DISALLOWED_HOSTNAMES.has(rawHost) ||
+      DISALLOWED_HOSTNAMES.has(unbracketedHost) ||
+      RESTRICTED_HOST_SUFFIXES.some((suffix) => unbracketedHost.endsWith(suffix))
     ) {
       return {
         valid: false,
+        ssrf_blocked: true,
         originalUrl: urlStr,
         normalizedUrl: '',
-        hostname: host,
-        reason: `Hostname "${host}" is a placeholder/local host, not a verifiable public source.`
+        hostname: rawHost,
+        reason: 'Blocked by SSRF policy: Localhost, internal, or placeholder hostname is disallowed.'
+      };
+    }
+
+    if (isObfuscatedNumericHost(unbracketedHost)) {
+      return {
+        valid: false,
+        ssrf_blocked: true,
+        originalUrl: urlStr,
+        normalizedUrl: '',
+        hostname: rawHost,
+        reason: 'Blocked by SSRF policy: Obfuscated numeric IP notation is disallowed.'
+      };
+    }
+
+    // Check if hostname is an IPv4 or IPv6 literal
+    const isIpv6Literal = rawHost.startsWith('[') || unbracketedHost.includes(':');
+    const isIpv4Literal = parseStrictIpv4Octets(unbracketedHost) !== null;
+
+    if (isIpv4Literal || isIpv6Literal) {
+      const ipCheck = isPrivateOrReservedIp(unbracketedHost);
+      if (ipCheck.blocked) {
+        return {
+          valid: false,
+          ssrf_blocked: true,
+          originalUrl: urlStr,
+          normalizedUrl: '',
+          hostname: rawHost,
+          reason: `Blocked by SSRF policy: ${ipCheck.reason}`
+        };
+      }
+    } else if (!unbracketedHost.includes('.')) {
+      return {
+        valid: false,
+        ssrf_blocked: true,
+        originalUrl: urlStr,
+        normalizedUrl: '',
+        hostname: rawHost,
+        reason: 'Blocked by SSRF policy: Single-label unqualified internal hostname is disallowed.'
       };
     }
 
@@ -316,10 +646,287 @@ export function extractValidPublicUrl(rawUrl, fallbackText = '') {
       parsed.searchParams.delete(p)
     );
     const normalized = parsed.toString().replace(/\/$/, '');
-    return { valid: true, originalUrl: urlStr, normalizedUrl: normalized, hostname: host, reason: 'Valid public URL format.' };
+    return {
+      valid: true,
+      ssrf_blocked: false,
+      originalUrl: urlStr,
+      normalizedUrl: normalized,
+      hostname: rawHost,
+      unbracketedHost,
+      isIpLiteral: isIpv4Literal || isIpv6Literal,
+      reason: 'Valid public URL format.'
+    };
   } catch {
-    return { valid: false, originalUrl: urlStr, normalizedUrl: '', hostname: '', reason: 'Malformed URL syntax.' };
+    return {
+      valid: false,
+      ssrf_blocked: false,
+      originalUrl: urlStr,
+      normalizedUrl: '',
+      hostname: '',
+      reason: 'Malformed URL syntax.'
+    };
   }
+}
+
+/**
+ * Phase 7.2 Requirement 1.2 & 1.3: Validates DNS resolution before connecting
+ * and performs two-phase resolution to detect and block DNS rebinding attacks.
+ */
+export async function validatePublicTargetWithDns(urlStr, { dnsLookup } = {}) {
+  const urlCheck = extractValidPublicUrl(urlStr);
+  if (!urlCheck.valid) {
+    const err = new Error(urlCheck.reason);
+    err.code = urlCheck.ssrf_blocked ? 'ERR_SSRF_BLOCKED' : 'ERR_INVALID_URL';
+    throw err;
+  }
+
+  if (urlCheck.isIpLiteral) {
+    return {
+      normalizedUrl: urlCheck.normalizedUrl,
+      hostname: urlCheck.hostname,
+      resolvedAddress: urlCheck.unbracketedHost
+    };
+  }
+
+  const lookupFn = dnsLookup || dns.promises.lookup;
+
+  // Phase 1 Pre-flight DNS Lookup
+  let recordsPhase1;
+  try {
+    recordsPhase1 = await lookupFn(urlCheck.unbracketedHost, { all: true, verbatim: true });
+  } catch {
+    const err = new Error('DNS resolution failed for target hostname.');
+    err.code = 'ERR_DNS_LOOKUP_FAILED';
+    throw err;
+  }
+
+  const list1 = Array.isArray(recordsPhase1)
+    ? recordsPhase1
+    : recordsPhase1 && recordsPhase1.address
+      ? [recordsPhase1]
+      : [];
+
+  if (list1.length === 0) {
+    const err = new Error('DNS resolution returned zero addresses.');
+    err.code = 'ERR_DNS_LOOKUP_FAILED';
+    throw err;
+  }
+
+  const publicSet1 = new Set();
+  for (const rec of list1) {
+    const ipCheck = isPrivateOrReservedIp(rec.address);
+    if (ipCheck.blocked) {
+      const err = new Error('Blocked by SSRF policy: Hostname resolved to a private or reserved IP address.');
+      err.code = 'ERR_SSRF_BLOCKED';
+      throw err;
+    }
+    publicSet1.add(rec.address);
+  }
+
+  // Phase 2 Connection-time DNS Rebinding Verification
+  let recordsPhase2;
+  try {
+    recordsPhase2 = await lookupFn(urlCheck.unbracketedHost, { all: true, verbatim: true });
+  } catch {
+    const err = new Error('Connection-time DNS verification failed.');
+    err.code = 'ERR_DNS_LOOKUP_FAILED';
+    throw err;
+  }
+
+  const list2 = Array.isArray(recordsPhase2)
+    ? recordsPhase2
+    : recordsPhase2 && recordsPhase2.address
+      ? [recordsPhase2]
+      : [];
+
+  if (list2.length === 0) {
+    const err = new Error('Connection-time DNS resolution returned zero addresses.');
+    err.code = 'ERR_DNS_LOOKUP_FAILED';
+    throw err;
+  }
+
+  let hasOverlap = false;
+  for (const rec of list2) {
+    const ipCheck = isPrivateOrReservedIp(rec.address);
+    if (ipCheck.blocked) {
+      const err = new Error('Blocked by SSRF policy: DNS rebinding to private or reserved IP detected.');
+      err.code = 'ERR_SSRF_DNS_REBINDING';
+      throw err;
+    }
+    if (publicSet1.has(rec.address)) {
+      hasOverlap = true;
+    }
+  }
+
+  if (!hasOverlap) {
+    const err = new Error('Blocked by SSRF policy: Unstable DNS resolution (potential DNS rebinding) detected.');
+    err.code = 'ERR_SSRF_DNS_REBINDING';
+    throw err;
+  }
+
+  return {
+    normalizedUrl: urlCheck.normalizedUrl,
+    hostname: urlCheck.hostname,
+    resolvedAddress: list2[0].address
+  };
+}
+
+/**
+ * Reads response body up to `maxResponseBytes` and throws `ERR_RESPONSE_TOO_LARGE` if exceeded.
+ */
+async function readBodyWithSizeLimit(res, maxResponseBytes = MAX_SOURCE_RESPONSE_BYTES) {
+  const contentLengthHeader =
+    typeof res.headers?.get === 'function'
+      ? res.headers.get('content-length')
+      : res.headers?.['content-length'] || res.headers?.['Content-Length'];
+
+  if (contentLengthHeader !== undefined && contentLengthHeader !== null) {
+    const declaredBytes = Number(contentLengthHeader);
+    if (Number.isFinite(declaredBytes) && declaredBytes > maxResponseBytes) {
+      const err = new Error(`Response Content-Length (${declaredBytes} bytes) exceeds limit (${maxResponseBytes} bytes).`);
+      err.code = 'ERR_RESPONSE_TOO_LARGE';
+      throw err;
+    }
+  }
+
+  if (res.body && typeof res.body.getReader === 'function') {
+    const reader = res.body.getReader();
+    const chunks = [];
+    let totalBytes = 0;
+    const decoder = new TextDecoder('utf-8');
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunkBytes = value ? value.byteLength : 0;
+        totalBytes += chunkBytes;
+        if (totalBytes > maxResponseBytes) {
+          await reader.cancel().catch(() => {});
+          const err = new Error(`Response stream exceeded maximum allowed size (${maxResponseBytes} bytes).`);
+          err.code = 'ERR_RESPONSE_TOO_LARGE';
+          throw err;
+        }
+        chunks.push(decoder.decode(value, { stream: true }));
+      }
+      chunks.push(decoder.decode());
+      return chunks.join('');
+    } finally {
+      reader.releaseLock?.();
+    }
+  }
+
+  const text = await res.text();
+  const actualBytes = Buffer.byteLength(String(text || ''), 'utf8');
+  if (actualBytes > maxResponseBytes) {
+    const err = new Error(`Response body (${actualBytes} bytes) exceeded maximum allowed size (${maxResponseBytes} bytes).`);
+    err.code = 'ERR_RESPONSE_TOO_LARGE';
+    throw err;
+  }
+  return text;
+}
+
+/**
+ * Offline-safe fallback DNS resolver used ONLY when a unit test supplies a mocked fetchImpl
+ * without a custom dnsLookup, ensuring `npm test` never depends on an internet connection.
+ */
+async function defaultMockFetchDnsLookup(hostname) {
+  const check = isPrivateOrReservedIp(hostname);
+  if (!check.blocked) {
+    return [{ address: hostname, family: hostname.includes(':') ? 6 : 4 }];
+  }
+  return [{ address: '93.184.216.34', family: 4 }];
+}
+
+/**
+ * Phase 7.2 Requirement 1: SSRF-hardened HTTP/HTTPS fetcher.
+ * - Enforces HTTP/HTTPS only
+ * - Validates literal IPs and resolves DNS (with two-phase rebinding check) before every hop
+ * - Disables automatic redirects (`redirect: 'manual'`) and validates every redirect target
+ * - Enforces strict timeout (`timeoutMs`) and response size limit (`maxResponseBytes`)
+ */
+export async function safePublicFetch(
+  initialUrl,
+  {
+    fetchImpl = globalThis.fetch,
+    dnsLookup,
+    headers = {},
+    timeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+    maxRedirects = MAX_SAFE_REDIRECTS,
+    maxResponseBytes = MAX_SOURCE_RESPONSE_BYTES
+  } = {}
+) {
+  const effectiveDnsLookup =
+    dnsLookup || (fetchImpl === globalThis.fetch ? dns.promises.lookup : defaultMockFetchDnsLookup);
+
+  let currentUrl = initialUrl;
+
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    const validated = await validatePublicTargetWithDns(currentUrl, {
+      dnsLookup: effectiveDnsLookup
+    });
+
+    const res = await fetchImpl(validated.normalizedUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'STRAW-Research-Engine/0.7.2 (+https://github.com/zakshub/straw)',
+        Accept: 'text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.8',
+        ...headers
+      },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+
+    const status = res.status;
+    if (status === 301 || status === 302 || status === 303 || status === 307 || status === 308) {
+      if (hop >= maxRedirects) {
+        const err = new Error(`Exceeded maximum redirect limit (${maxRedirects}).`);
+        err.code = 'ERR_TOO_MANY_REDIRECTS';
+        throw err;
+      }
+
+      const locationHeader =
+        typeof res.headers?.get === 'function'
+          ? res.headers.get('location')
+          : res.headers?.location || res.headers?.Location;
+
+      if (!locationHeader) {
+        const err = new Error('Redirect response missing Location header.');
+        err.code = 'ERR_INVALID_REDIRECT';
+        throw err;
+      }
+
+      let resolvedNextUrl;
+      try {
+        resolvedNextUrl = new URL(locationHeader, validated.normalizedUrl).toString();
+      } catch {
+        const err = new Error('Malformed redirect Location URL.');
+        err.code = 'ERR_INVALID_REDIRECT';
+        throw err;
+      }
+
+      // Validate redirect destination immediately (will throw ERR_SSRF_BLOCKED if private/internal/non-http)
+      await validatePublicTargetWithDns(resolvedNextUrl, {
+        dnsLookup: effectiveDnsLookup
+      });
+
+      currentUrl = resolvedNextUrl;
+      continue;
+    }
+
+    const bodyText = await readBodyWithSizeLimit(res, maxResponseBytes);
+    const ok = res.ok !== undefined ? res.ok : status >= 200 && status < 300;
+    return {
+      status,
+      ok,
+      finalUrl: validated.normalizedUrl,
+      text: bodyText
+    };
+  }
+
+  const err = new Error('Redirect resolution failed.');
+  err.code = 'ERR_TOO_MANY_REDIRECTS';
+  throw err;
 }
 
 export function computeEvidenceFingerprint({ opportunityId, normalizedUrl, statement, claimType }) {
@@ -457,7 +1064,12 @@ export function verifyAndClassifyEvidence(input, nowDate = new Date()) {
     verificationMethod = 'ai_hypothesis_blocked';
     notes.push('AI-generated hypotheses or LLM conclusions cannot be classified as verified source evidence.');
   } else if (!urlCheck.valid) {
-    if (requestedTier === 'verified_evidence' || requestedTier === 'practitioner_observation') {
+    if (urlCheck.ssrf_blocked) {
+      finalTier = 'assumption';
+      verificationStatus = 'downgraded_unverified';
+      verificationMethod = 'ssrf_blocked';
+      notes.push(`Security block (SSRF protection): ${urlCheck.reason}`);
+    } else if (requestedTier === 'verified_evidence' || requestedTier === 'practitioner_observation') {
       finalTier = 'assumption';
       verificationStatus = 'downgraded_unverified';
       verificationMethod = 'invalid_url_format';
@@ -466,6 +1078,22 @@ export function verifyAndClassifyEvidence(input, nowDate = new Date()) {
       verificationStatus = isStale ? 'stale' : 'pending_review';
       notes.push(`Recorded as ${finalTier} without public URL.`);
     }
+  } else if (
+    verificationMethod === 'ssrf_blocked' ||
+    verificationMethod === 'ssrf_redirect_blocked' ||
+    verificationMethod === 'ssrf_dns_rebinding_blocked'
+  ) {
+    finalTier = 'assumption';
+    verificationStatus = 'downgraded_unverified';
+    notes.push(
+      `Security block (${verificationMethod}): Target resolved or redirected to a restricted/internal network address.`
+    );
+  } else if (verificationMethod === 'response_too_large') {
+    finalTier = 'assumption';
+    verificationStatus = 'downgraded_unverified';
+    notes.push(
+      `Source response exceeded the maximum allowed safety limit (${MAX_SOURCE_RESPONSE_BYTES} bytes) and was aborted.`
+    );
   } else if (supportingExcerpt.length < 15) {
     // Valid URL format, but missing supporting excerpt
     if (requestedTier === 'verified_evidence') {
@@ -517,9 +1145,13 @@ export function verifyAndClassifyEvidence(input, nowDate = new Date()) {
     verificationStatus = 'downgraded_unverified';
     notes.push(`Downgraded from verified_evidence: ${wtpCheck.reason}`);
   } else if (requestedTier === 'verified_evidence') {
-    // Milestone 2 Requirement 5: Do NOT classify as verified merely because it has a valid URL and manually supplied excerpt!
-    // Must have excerptVerifiedInSource === 1, sourceContentHash !== '', and httpStatus === 200
-    if (excerptVerifiedInSource === 1 && sourceContentHash && (httpStatus === 200 || httpStatus === null)) {
+    // Milestone 2 Requirement 5 + Phase 7.2 Requirement 2:
+    // Must have excerptVerifiedInSource === 1, a full 64-character SHA-256 hex digest in sourceContentHash, and httpStatus === 200
+    if (
+      excerptVerifiedInSource === 1 &&
+      isValidSha256Hex(sourceContentHash) &&
+      (httpStatus === 200 || httpStatus === null)
+    ) {
       if (sourceReliability < 0.5) {
         finalTier = 'practitioner_observation';
         verificationStatus = 'downgraded_unverified';
@@ -528,16 +1160,16 @@ export function verifyAndClassifyEvidence(input, nowDate = new Date()) {
         finalTier = 'verified_evidence';
         verificationStatus = 'verified';
         notes.push(
-          `Verified against retrieved source content (${detectedSourceName}, hash: ${sourceContentHash.slice(0, 10)}) with confirmed supporting excerpt.`
+          `Verified against retrieved source content (${detectedSourceName}, sha256: ${sourceContentHash.slice(0, 12)}...) with confirmed supporting excerpt.`
         );
       }
     } else {
-      // Valid URL format + manually supplied excerpt, but source content has NOT been retrieved/confirmed yet!
+      // Valid URL format + manually supplied excerpt, but source content has NOT been retrieved/confirmed with a valid 64-char SHA-256 digest!
       finalTier = 'practitioner_observation';
       verificationStatus = 'pending_review';
       verificationMethod = 'url_format_only_unverified';
       notes.push(
-        'URL format is valid and excerpt was supplied manually, but source content has not been retrieved to confirm the excerpt. Held as practitioner_observation (pending_review) until source retrieval confirms content.'
+        'URL format is valid and excerpt was supplied manually, but source content has not been retrieved (or lacks a valid 64-character SHA-256 content hash) to confirm the excerpt. Held as practitioner_observation (pending_review) until source retrieval confirms content.'
       );
     }
   } else if (requestedTier === 'practitioner_observation') {
@@ -600,21 +1232,40 @@ export function verifyAndClassifyEvidence(input, nowDate = new Date()) {
   };
 }
 
+function sanitizeNetworkErrorForOutput(err) {
+  const raw = String(err?.message || 'External source retrieval error.');
+  return raw
+    .replace(/\b(?:127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+|169\.254\.\d+\.\d+)\b/g, '[redacted-internal-ip]')
+    .replace(/\b(?:ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|EADDRNOTAVAIL)\b[^.]*/gi, 'External connection failed');
+}
+
 /**
- * Milestone 2: Retrieves a public source URL via HTTP/HTTPS and verifies whether
+ * Milestone 2 + Phase 7.2 SSRF-hardened source retrieval:
+ * Retrieves a public source URL via HTTP/HTTPS and verifies whether
  * the supporting excerpt actually exists in the retrieved content.
- * Also detects changed source content if a previous `previous_content_hash` is provided.
+ * - Rejects localhost, private IPv4/IPv6, link-local, loopback, reserved, and obfuscated IPs.
+ * - Validates DNS resolution before connecting and prevents DNS rebinding.
+ * - Manually validates every redirect hop and blocks redirects to internal/private targets.
+ * - Enforces response size limits (MAX_SOURCE_RESPONSE_BYTES) and strict request timeouts.
+ * - Never exposes raw internal network errors.
  */
 export async function retrieveAndVerifySourceContent(
   input,
-  { fetchImpl = globalThis.fetch, timeoutMs = 5000, nowDate = new Date() } = {}
+  {
+    fetchImpl = globalThis.fetch,
+    dnsLookup,
+    timeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+    maxRedirects = MAX_SAFE_REDIRECTS,
+    maxResponseBytes = MAX_SOURCE_RESPONSE_BYTES,
+    nowDate = new Date()
+  } = {}
 ) {
   const urlCheck = extractValidPublicUrl(input.original_source_url || input.source_url, input.source_citation);
   if (!urlCheck.valid) {
     return verifyAndClassifyEvidence(
       {
         ...input,
-        verification_method: 'invalid_url_format',
+        verification_method: urlCheck.ssrf_blocked ? 'ssrf_blocked' : 'invalid_url_format',
         excerpt_verified_in_source: 0
       },
       nowDate
@@ -624,17 +1275,16 @@ export async function retrieveAndVerifySourceContent(
   const retrievedAt = nowDate.toISOString();
 
   try {
-    const res = await fetchImpl(urlCheck.normalizedUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'STRAW-Research-Verifier/0.7.1 (+https://github.com/zakshub/straw)',
-        Accept: 'text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.8'
-      },
-      signal: AbortSignal.timeout(timeoutMs)
+    const safeRes = await safePublicFetch(urlCheck.normalizedUrl, {
+      fetchImpl,
+      dnsLookup,
+      timeoutMs,
+      maxRedirects,
+      maxResponseBytes
     });
 
-    const httpStatus = res.status;
-    const finalUrl = res.url || urlCheck.normalizedUrl;
+    const httpStatus = safeRes.status;
+    const finalUrl = safeRes.finalUrl || urlCheck.normalizedUrl;
 
     if (httpStatus === 401 || httpStatus === 403 || httpStatus === 429) {
       return verifyAndClassifyEvidence(
@@ -651,7 +1301,7 @@ export async function retrieveAndVerifySourceContent(
       );
     }
 
-    if (!res.ok) {
+    if (!safeRes.ok) {
       return verifyAndClassifyEvidence(
         {
           ...input,
@@ -666,7 +1316,7 @@ export async function retrieveAndVerifySourceContent(
       );
     }
 
-    const bodyText = await res.text();
+    const bodyText = safeRes.text;
     const newHash = computeContentHash(bodyText);
     const contentChanged =
       Boolean(input.previous_content_hash) && input.previous_content_hash !== newHash;
@@ -694,6 +1344,16 @@ export async function retrieveAndVerifySourceContent(
 
     return classified;
   } catch (err) {
+    let method = 'http_retrieval_failed';
+    if (err.code === 'ERR_SSRF_DNS_REBINDING') {
+      method = 'ssrf_dns_rebinding_blocked';
+    } else if (err.code === 'ERR_SSRF_BLOCKED' || err.ssrf_blocked) {
+      method = 'ssrf_blocked';
+    } else if (err.code === 'ERR_RESPONSE_TOO_LARGE') {
+      method = 'response_too_large';
+    }
+
+    const safeMessage = sanitizeNetworkErrorForOutput(err);
     return verifyAndClassifyEvidence(
       {
         ...input,
@@ -702,8 +1362,8 @@ export async function retrieveAndVerifySourceContent(
         retrieved_at: retrievedAt,
         http_status: 0,
         excerpt_verified_in_source: 0,
-        verification_method: 'http_retrieval_failed',
-        source_citation: `${input.source_citation || urlCheck.normalizedUrl} (Fetch error: ${err.message})`
+        verification_method: method,
+        source_citation: `${input.source_citation || urlCheck.normalizedUrl} (${safeMessage})`
       },
       nowDate
     );
@@ -886,15 +1546,16 @@ export class ResearchEngine {
     }));
   }
 
-  async retrieveSourceForVerification(url, supportingExcerpt = '') {
-    const activeFetch = this.fetchFn || globalThis.fetch;
+  async retrieveSourceForVerification(url, supportingExcerpt = '', { fetchImpl, dnsLookup } = {}) {
+    const activeFetch = fetchImpl || this.fetchFn || globalThis.fetch;
+    const activeDns = dnsLookup || this.dnsLookup;
     return retrieveAndVerifySourceContent(
       {
         source_url: url,
         supporting_excerpt: supportingExcerpt,
         evidence_tier: 'verified_evidence'
       },
-      { fetchImpl: activeFetch }
+      { fetchImpl: activeFetch, dnsLookup: activeDns }
     );
   }
 
@@ -947,8 +1608,9 @@ export class ResearchEngine {
    * Retrieves the live source URL for an existing evidence record and verifies
    * whether the supporting excerpt actually exists in the retrieved content.
    */
-  async verifyExistingEvidenceSource(evidenceId, { fetchImpl } = {}) {
+  async verifyExistingEvidenceSource(evidenceId, { fetchImpl, dnsLookup } = {}) {
     const activeFetch = fetchImpl || this.fetchFn || globalThis.fetch;
+    const activeDns = dnsLookup || this.dnsLookup;
     const existing = this.db.prepare('SELECT * FROM market_evidence WHERE id = ?').get(evidenceId);
     if (!existing) throw new Error(`Evidence record ${evidenceId} not found.`);
 
@@ -958,7 +1620,7 @@ export class ResearchEngine {
         evidence_tier: existing.requested_evidence_tier || existing.evidence_tier,
         previous_content_hash: existing.source_content_hash || ''
       },
-      { fetchImpl: activeFetch }
+      { fetchImpl: activeFetch, dnsLookup: activeDns }
     );
 
     this.db
@@ -1079,9 +1741,10 @@ export class ResearchEngine {
       approval_request_id = null,
       estimated_cost_usd = 25
     },
-    { fetchImpl } = {}
+    { fetchImpl, dnsLookup } = {}
   ) {
     const activeFetch = fetchImpl || this.fetchFn || globalThis.fetch;
+    const activeDns = dnsLookup || this.dnsLookup;
     this.ensureDefaultSources();
     const runId = `run-${crypto.randomUUID().slice(0, 8)}`;
     const startedAt = new Date().toISOString();
@@ -1089,7 +1752,7 @@ export class ResearchEngine {
     const allSources = this.listSources();
     const sources = allSources.filter((s) => source_ids.includes(s.id));
 
-    // Milestone 1: Server-side Financial Approval Security Check for Paid Sources
+    // Milestone 1 + Phase 7.2 Req 4: Server-side Financial Approval Security Check for Paid Sources
     const paidSources = sources.filter((s) => s.is_paid_service === 1);
     let verifiedAuthorizationRef = null;
 
@@ -1103,7 +1766,8 @@ export class ResearchEngine {
             requiredProviderIds,
             requiredScope: 'paid_research_execution',
             requiredActionCategories: ['spend_money', 'purchase_service'],
-            requestedCostUsd: requestedCost
+            requestedCostUsd: requestedCost,
+            requestedOpportunityId: opportunity_id
           })
         : {
             authorized: false,
@@ -1165,23 +1829,60 @@ export class ResearchEngine {
 
         try {
           if (src.adapter_key === 'hn_algolia_api') {
-            await this.collectFromHackerNewsAlgolia(query_topic, startedAt, collectedRawFindings, networkNotes, activeFetch);
+            await this.collectFromHackerNewsAlgolia(
+              query_topic,
+              startedAt,
+              collectedRawFindings,
+              networkNotes,
+              activeFetch,
+              activeDns
+            );
           } else if (src.adapter_key === 'wordpress_plugins_api') {
-            await this.collectFromWordPressPluginApi(query_topic, startedAt, collectedRawFindings, networkNotes, activeFetch);
+            await this.collectFromWordPressPluginApi(
+              query_topic,
+              startedAt,
+              collectedRawFindings,
+              networkNotes,
+              activeFetch,
+              activeDns
+            );
           } else if (src.adapter_key === 'github_repos_api') {
-            await this.collectFromGitHubPublicApi(query_topic, startedAt, collectedRawFindings, networkNotes, activeFetch);
+            await this.collectFromGitHubPublicApi(
+              query_topic,
+              startedAt,
+              collectedRawFindings,
+              networkNotes,
+              activeFetch,
+              activeDns
+            );
           } else if (src.adapter_key === 'reddit_public_json') {
-            await this.collectFromRedditPublicJson(query_topic, startedAt, collectedRawFindings, networkNotes, activeFetch);
+            await this.collectFromRedditPublicJson(
+              query_topic,
+              startedAt,
+              collectedRawFindings,
+              networkNotes,
+              activeFetch,
+              activeDns
+            );
           } else if (src.adapter_key === 'public_url_inspector') {
             const urlToInspect = target_url || (query_topic.startsWith('http') ? query_topic : null);
             if (!urlToInspect) {
               networkNotes.push(`${src.name} requires a valid target_url parameter to inspect.`);
             } else {
-              await this.collectFromPublicUrlInspector(urlToInspect, startedAt, collectedRawFindings, networkNotes, activeFetch);
+              await this.collectFromPublicUrlInspector(
+                urlToInspect,
+                startedAt,
+                collectedRawFindings,
+                networkNotes,
+                activeFetch,
+                activeDns
+              );
             }
           }
         } catch (err) {
-          networkNotes.push(`${src.name} connector error (${err.message}); zero fabricated results.`);
+          networkNotes.push(
+            `${src.name} connector error (${sanitizeNetworkErrorForOutput(err)}); zero fabricated results.`
+          );
         }
       }
     }
@@ -1276,11 +1977,19 @@ export class ResearchEngine {
    * 4. Never infers willingness to pay from discussion volume.
    * 5. If comments cannot be retrieved, classifies story hits strictly as unverified discovery signals.
    */
-  async collectFromHackerNewsAlgolia(queryTopic, retrievedAt, collectedRawFindings, networkNotes, fetchImpl) {
+  async collectFromHackerNewsAlgolia(
+    queryTopic,
+    retrievedAt,
+    collectedRawFindings,
+    networkNotes,
+    fetchImpl,
+    dnsLookup
+  ) {
     const commentUrl = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(queryTopic)}&tags=comment&hitsPerPage=4`;
-    const commentRes = await fetchImpl(commentUrl, {
-      headers: { 'User-Agent': 'STRAW-Research-Engine/0.7.1 (+https://github.com/zakshub/straw)' },
-      signal: AbortSignal.timeout(5000)
+    const commentRes = await safePublicFetch(commentUrl, {
+      fetchImpl,
+      dnsLookup,
+      timeoutMs: DEFAULT_FETCH_TIMEOUT_MS
     });
 
     if (commentRes.status === 429) {
@@ -1290,7 +1999,7 @@ export class ResearchEngine {
 
     let commentsCaptured = 0;
     if (commentRes.ok) {
-      const rawText = await commentRes.text();
+      const rawText = commentRes.text;
       let commentData;
       try {
         commentData = JSON.parse(rawText);
@@ -1332,9 +2041,10 @@ export class ResearchEngine {
     // If no actual comments could be retrieved, inspect story headers ONLY as unverified discovery signals
     if (commentsCaptured === 0) {
       const storyUrl = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(queryTopic)}&tags=story&hitsPerPage=3`;
-      const storyRes = await fetchImpl(storyUrl, {
-        headers: { 'User-Agent': 'STRAW-Research-Engine/0.7.1 (+https://github.com/zakshub/straw)' },
-        signal: AbortSignal.timeout(5000)
+      const storyRes = await safePublicFetch(storyUrl, {
+        fetchImpl,
+        dnsLookup,
+        timeoutMs: DEFAULT_FETCH_TIMEOUT_MS
       });
 
       if (!storyRes.ok) {
@@ -1342,7 +2052,7 @@ export class ResearchEngine {
         return;
       }
 
-      const rawStoryText = await storyRes.text();
+      const rawStoryText = storyRes.text;
       let storyData;
       try {
         storyData = JSON.parse(rawStoryText);
@@ -1387,11 +2097,19 @@ export class ResearchEngine {
    * Classifies plugin listings and active install counts strictly as competitor/ecosystem evidence,
    * never as willingness-to-pay proof.
    */
-  async collectFromWordPressPluginApi(queryTopic, retrievedAt, collectedRawFindings, networkNotes, fetchImpl) {
+  async collectFromWordPressPluginApi(
+    queryTopic,
+    retrievedAt,
+    collectedRawFindings,
+    networkNotes,
+    fetchImpl,
+    dnsLookup
+  ) {
     const url = `https://api.wordpress.org/plugins/info/1.2/?action=query_plugins&request[search]=${encodeURIComponent(queryTopic)}&request[per_page]=3`;
-    const res = await fetchImpl(url, {
-      headers: { 'User-Agent': 'STRAW-Research-Engine/0.7.1 (+https://github.com/zakshub/straw)' },
-      signal: AbortSignal.timeout(5000)
+    const res = await safePublicFetch(url, {
+      fetchImpl,
+      dnsLookup,
+      timeoutMs: DEFAULT_FETCH_TIMEOUT_MS
     });
 
     if (!res.ok) {
@@ -1399,7 +2117,7 @@ export class ResearchEngine {
       return;
     }
 
-    const rawText = await res.text();
+    const rawText = res.text;
     let data;
     try {
       data = JSON.parse(rawText);
@@ -1439,14 +2157,20 @@ export class ResearchEngine {
   /**
    * Milestone 3: GitHub Public Repositories Search Connector.
    */
-  async collectFromGitHubPublicApi(queryTopic, retrievedAt, collectedRawFindings, networkNotes, fetchImpl) {
+  async collectFromGitHubPublicApi(
+    queryTopic,
+    retrievedAt,
+    collectedRawFindings,
+    networkNotes,
+    fetchImpl,
+    dnsLookup
+  ) {
     const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(queryTopic)}&per_page=3`;
-    const res = await fetchImpl(url, {
-      headers: {
-        'User-Agent': 'STRAW-Research-Engine/0.7.1 (+https://github.com/zakshub/straw)',
-        Accept: 'application/vnd.github+json'
-      },
-      signal: AbortSignal.timeout(5000)
+    const res = await safePublicFetch(url, {
+      fetchImpl,
+      dnsLookup,
+      timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+      headers: { Accept: 'application/vnd.github+json' }
     });
 
     if (res.status === 403 || res.status === 429) {
@@ -1458,7 +2182,7 @@ export class ResearchEngine {
       return;
     }
 
-    const rawText = await res.text();
+    const rawText = res.text;
     let data;
     try {
       data = JSON.parse(rawText);
@@ -1496,11 +2220,19 @@ export class ResearchEngine {
   /**
    * Milestone 3: Reddit Public Discussions JSON Connector.
    */
-  async collectFromRedditPublicJson(queryTopic, retrievedAt, collectedRawFindings, networkNotes, fetchImpl) {
+  async collectFromRedditPublicJson(
+    queryTopic,
+    retrievedAt,
+    collectedRawFindings,
+    networkNotes,
+    fetchImpl,
+    dnsLookup
+  ) {
     const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(queryTopic)}&limit=3`;
-    const res = await fetchImpl(url, {
-      headers: { 'User-Agent': 'STRAW-Research-Engine/0.7.1 (+https://github.com/zakshub/straw)' },
-      signal: AbortSignal.timeout(5000)
+    const res = await safePublicFetch(url, {
+      fetchImpl,
+      dnsLookup,
+      timeoutMs: DEFAULT_FETCH_TIMEOUT_MS
     });
 
     if (res.status === 403 || res.status === 429) {
@@ -1514,7 +2246,7 @@ export class ResearchEngine {
       return;
     }
 
-    const rawText = await res.text();
+    const rawText = res.text;
     let data;
     try {
       data = JSON.parse(rawText);
@@ -1572,16 +2304,59 @@ export class ResearchEngine {
   }
 
   /**
-   * Milestone 3: Public Competitor & Pricing Page URL Inspector.
+   * Milestone 3 + Phase 7.2 SSRF-hardened: Public Competitor & Pricing Page URL Inspector.
    */
-  async collectFromPublicUrlInspector(targetUrl, retrievedAt, collectedRawFindings, networkNotes, fetchImpl) {
-    const res = await fetchImpl(targetUrl, {
-      headers: { 'User-Agent': 'STRAW-Research-Engine/0.7.1 (+https://github.com/zakshub/straw)' },
-      signal: AbortSignal.timeout(5000)
-    });
+  async collectFromPublicUrlInspector(
+    targetUrl,
+    retrievedAt,
+    collectedRawFindings,
+    networkNotes,
+    fetchImpl,
+    dnsLookup
+  ) {
+    let safeRes;
+    try {
+      safeRes = await safePublicFetch(targetUrl, {
+        fetchImpl,
+        dnsLookup,
+        timeoutMs: DEFAULT_FETCH_TIMEOUT_MS
+      });
+    } catch (err) {
+      const safeMsg = sanitizeNetworkErrorForOutput(err);
+      const isSsrf =
+        err.code === 'ERR_SSRF_BLOCKED' ||
+        err.code === 'ERR_SSRF_DNS_REBINDING' ||
+        err.ssrf_blocked;
+      const isTooLarge = err.code === 'ERR_RESPONSE_TOO_LARGE';
+      const method =
+        err.code === 'ERR_SSRF_DNS_REBINDING'
+          ? 'ssrf_dns_rebinding_blocked'
+          : isSsrf
+            ? 'ssrf_blocked'
+            : isTooLarge
+              ? 'response_too_large'
+              : 'http_retrieval_failed';
 
-    const httpStatus = res.status;
-    const finalUrl = res.url || targetUrl;
+      collectedRawFindings.push({
+        claim_type: 'competitor',
+        statement: `Public URL inspection blocked/failed for ${targetUrl}: ${safeMsg}`,
+        evidence_tier: 'assumption',
+        original_source_url: targetUrl,
+        source_url: targetUrl,
+        final_source_url: targetUrl,
+        supporting_excerpt: '',
+        retrieved_at: retrievedAt,
+        http_status: 0,
+        verification_method: method,
+        research_methodology: 'direct_url_inspection',
+        stance: 'neutral'
+      });
+      networkNotes.push(`Public URL Inspector blocked/failed (${safeMsg}).`);
+      return;
+    }
+
+    const httpStatus = safeRes.status;
+    const finalUrl = safeRes.finalUrl || targetUrl;
 
     if (httpStatus === 401 || httpStatus === 403 || httpStatus === 429) {
       collectedRawFindings.push({
@@ -1602,12 +2377,12 @@ export class ResearchEngine {
       return;
     }
 
-    if (!res.ok) {
+    if (!safeRes.ok) {
       networkNotes.push(`Public URL Inspector: Target ${targetUrl} returned HTTP ${httpStatus}.`);
       return;
     }
 
-    const rawHtml = await res.text();
+    const rawHtml = safeRes.text;
     const titleMatch = rawHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
     const pageTitle = titleMatch ? normalizeTextForVerification(titleMatch[1]) : targetUrl;
     const cleanBody = normalizeTextForVerification(rawHtml);

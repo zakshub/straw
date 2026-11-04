@@ -50,3 +50,17 @@
 - [x] **Milestone 3 (Research Connector Audit):** Published full Source Capability Matrix (`getSourceCapabilityMatrix()` / `GET /api/research/matrix`) covering all 8 sources across 7 adapter keys (`hn_algolia_api`, `wordpress_plugins_api`, `github_repos_api`, `reddit_public_json`, `public_url_inspector` = `implemented`; `marketplace_directory_inspector`, `paid_search_provider` = `unsupported`).
 - [x] **Milestone 4 (Hacker News Research Quality):** Updated `collectFromHackerNewsAlgolia` to fetch actual comment records (`tags=comment`), extract verbatim `comment_text`, record comment item URLs (`https://news.ycombinator.com/item?id=<comment_id>`), separate story popularity metadata from user pain evidence, and classify story-only fallbacks strictly as `pending_review` discovery signals.
 - [x] **Milestone 5 & 6 (Testing & Final Acceptance):** Expanded `tests/straw.test.js` with mocked unit/integration tests for all security, verification, and connector edge cases plus one controlled live test against the free Hacker News Algolia API.
+
+## Phase 7.2: Final Research Security & Test Reliability (Completed & Verified)
+- [x] **1. SSRF Prevention in Source Retrieval (`safePublicFetch`, `isPrivateOrReservedIp`, `validatePublicTargetWithDns`):**
+  - Reject `localhost`, private IPv4 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback (`127.0.0.0/8`, `::1`), link-local & cloud metadata (`169.254.0.0/16`, `169.254.169.254`, `fe80::/10`), CGNAT (`100.64.0.0/10`), private/ULA IPv6 (`fc00::/7`, `fd00::/8`), IPv4-mapped IPv6 (`::ffff:0:0/96`), NAT64 (`64:ff9b::/96`), 6to4 (`2002::/16`), multicast/broadcast/reserved ranges, obfuscated numeric/hex/octal IPs (`2130706433`, `0x7f000001`, `0177.0.0.1`, `127.1`), and internal hostnames (`.local`, `.internal`, `.localhost`, `metadata.google.internal`).
+  - Validate DNS resolution before connecting and perform two-phase DNS rebinding detection (`ERR_SSRF_DNS_REBINDING`).
+  - Disable automatic redirects (`redirect: 'manual'`) and manually validate every redirect hop (`MAX_SAFE_REDIRECTS = 3`), blocking redirects to private/internal targets or non-HTTP/HTTPS schemes.
+  - Enforce response size limits (`MAX_SOURCE_RESPONSE_BYTES = 512 * 1024`) and strict request timeouts (`5000ms`), and redact internal IP addresses and raw network socket error codes from API responses.
+- [x] **2. Full 64-Character SHA-256 Content Hash Validation:**
+  - Updated `computeContentHash()` and `isValidSha256Hex()` to enforce a complete 64-character hexadecimal SHA-256 digest (`/^[a-f0-9]{64}$/i`) for `source_content_hash`, kept strictly separate from the 24-character deduplication `content_fingerprint` (`computeEvidenceFingerprint()`).
+- [x] **3. Separation of Live Tests from Standard Offline Tests:**
+  - `npm test` (`tests/straw.test.js`) runs 100% deterministically offline with zero internet dependency.
+  - `npm run test:live` (`scripts/run-live-tests.js`) executes the controlled live external test against Hacker News Algolia and exits with non-zero code `2` (`SKIPPED — NOT PASSED`) when network access is unavailable so a skipped live test is never reported as passed.
+- [x] **4. Financial Authorization Hardening:**
+  - Prevented clients from creating pre-approved requests (`POST /api/approvals` and `ApprovalEngine.createRequest()`), prevented reuse of single-use consumed `authorization_ref` records (`APPROVAL_ALREADY_USED`), and enforced opportunity entity scope (`requestedOpportunityId`) and cumulative spending limit checks immediately prior to execution.

@@ -414,6 +414,11 @@ export function createAppServer(customContext) {
         if (!body.title || !body.action_category) {
           return sendJson(res, 400, { error: 'title and action_category are required.' });
         }
+        if ((body.status !== undefined && body.status !== 'pending') || body.decided_at !== undefined) {
+          return sendJson(res, 400, {
+            error: "Security violation: Client cannot create a pre-approved authorization. All requests must start as 'pending'."
+          });
+        }
         const request = ctx.approvalEngine.createRequest({
           entity_type: body.entity_type || 'system',
           entity_id: body.entity_id || 'manual',
@@ -492,7 +497,12 @@ export function createAppServer(customContext) {
 
       sendJson(res, 404, { error: `Route ${method} ${pathname} not found.` });
     } catch (err) {
-      sendJson(res, 500, { error: err.message || 'Internal server error' });
+      const rawMessage = String(err?.message || 'Internal request error');
+      // Sanitize internal network/system details from API error responses
+      const safeMessage = rawMessage
+        .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, '[redacted-ip]')
+        .replace(/ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN/g, 'NETWORK_UNAVAILABLE');
+      sendJson(res, 500, { error: safeMessage });
     }
   });
 

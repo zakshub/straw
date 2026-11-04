@@ -1,6 +1,6 @@
 # STRAW — Project Audit & Live Implementation Status
 
-**Last Updated:** 2026-11-02  
+**Last Updated:** 2026-11-04  
 **Canonical Repository:** `https://github.com/zakshub/straw`  
 **Local Workspace:** `/root/2026-portfolio/straw` (symlinked at `/root/2026-portfolio/ai-automation-lab/straw`)
 
@@ -18,21 +18,21 @@
 
 ---
 
-## 2. Current Implementation Status (Phases 0–7.1 Complete & Verified)
+## 2. Current Implementation Status (Phases 0–7.2 Complete & Verified)
 
 | Module / Subsystem | Phase | Status | Implementation File | Verification |
 | :--- | :--- | :--- | :--- | :--- |
-| **SQLite Storage & 15-Table Schema** | Phase 1–7.1 | **Operational** | `src/db/database.js`, `src/db/seed.js` | Verified via `node --test` |
-| **Owner Profile & Capability Engine** | Phase 1 | **Operational** | `src/engines/capability-engine.js` | Verified via `node --test` |
-| **Opportunity Discovery, Competitor Matrix, Simulator & Markdown Export** | Phase 1–2 | **Operational** | `src/engines/opportunity-engine.js` | Verified via `node --test` |
-| **Transparent 11-Dimension Scoring Engine** | Phase 1–7.1 | **Operational** | `src/engines/scoring-engine.js` | Verified via `node --test` |
-| **15-Stage Product Execution & Dependency Diagnostics** | Phase 1–3 | **Operational** | `src/engines/execution-engine.js` | Verified via `node --test` |
-| **Growth, Search Clusters, Monetization & Unit Economics** | Phase 1–4 | **Operational** | `src/engines/growth-monetization-engine.js` | Verified via `node --test` |
-| **Human Approval & Server-Side Financial Authorization Verifier** | Phase 1 & 7.1 | **Operational** | `src/engines/approval-engine.js` | Verified via `node --test` |
-| **Personal Business Intelligence & Proactive Portfolio Synthesizer** | Phase 1–5 | **Operational** | `src/engines/intelligence-engine.js` | Verified via `node --test` |
-| **Real-World Research, Content Verification & Capability Matrix Engine** | Phase 7 & 7.1 | **Operational** | `src/engines/research-engine.js` | Mocked + Controlled Live HN Test |
-| **Replaceable AI Orchestration Layer** | Phase 1–7 | **Operational** | `src/engines/ai-orchestrator.js` | Verified via `node --test` |
-| **Sentinel Light/Dark Business Workspace UI & Hardened Server** | Phase 1–7.1 | **Operational** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |
+| **SQLite Storage & 15-Table Schema** | Phase 1–7.2 | **Operational** | `src/db/database.js`, `src/db/seed.js` | Verified via `npm test` |
+| **Owner Profile & Capability Engine** | Phase 1 | **Operational** | `src/engines/capability-engine.js` | Verified via `npm test` |
+| **Opportunity Discovery, Competitor Matrix, Simulator & Markdown Export** | Phase 1–2 | **Operational** | `src/engines/opportunity-engine.js` | Verified via `npm test` |
+| **Transparent 11-Dimension Scoring Engine** | Phase 1–7.1 | **Operational** | `src/engines/scoring-engine.js` | Verified via `npm test` |
+| **15-Stage Product Execution & Dependency Diagnostics** | Phase 1–3 | **Operational** | `src/engines/execution-engine.js` | Verified via `npm test` |
+| **Growth, Search Clusters, Monetization & Unit Economics** | Phase 1–4 | **Operational** | `src/engines/growth-monetization-engine.js` | Verified via `npm test` |
+| **Human Approval & Single-Use Scoped Financial Authorization Verifier** | Phase 1, 7.1 & 7.2 | **Operational** | `src/engines/approval-engine.js` | Verified via `npm test` |
+| **Personal Business Intelligence & Proactive Portfolio Synthesizer** | Phase 1–5 | **Operational** | `src/engines/intelligence-engine.js` | Verified via `npm test` |
+| **SSRF-Hardened Research, 64-Char SHA-256 Content Verifier & Capability Matrix** | Phase 7, 7.1 & 7.2 | **Operational** | `src/engines/research-engine.js`, `scripts/run-live-tests.js` | `npm test` (offline) + `npm run test:live` |
+| **Replaceable AI Orchestration Layer** | Phase 1–7 | **Operational** | `src/engines/ai-orchestrator.js` | Verified via `npm test` |
+| **Sentinel Light/Dark Business Workspace UI & Hardened Server** | Phase 1–7.2 | **Operational** | `src/public/`, `src/server.js`, `src/cli.js` | Verified via HTTP & DOM checks |
 
 ---
 
