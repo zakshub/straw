@@ -3,194 +3,296 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>STRAW V1.0 — Smart Business Idea Finder, Proof Checker &amp; Product Planner</title>
+  <title>STRAW — Venture Intelligence &amp; Proof Operating Workspace</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="top-command-bar" role="banner">
-    <div class="brand-cluster">
-      <div class="brand-mark" aria-hidden="true">S//V1</div>
-      <div>
-        <h1 class="brand-title">STRAW V1.0</h1>
-        <p class="brand-subtitle" id="brand-subtitle-text">Smart Business Idea Finder, Proof Checker &amp; Product Planner</p>
-      </div>
-    </div>
-
-    <div class="header-status-strip" id="header-status-strip" aria-live="polite">
-      <span class="status-pill" id="pill-ai-mode">AI Mode: Safe Local Mode (Free)</span>
-      <span class="status-pill" id="pill-direction">Budget Rule: $0 Spent Without Your Approval</span>
-      <span class="status-pill status-pill-warn" id="pill-approvals">Waiting for Your Approval: 0</span>
-    </div>
-
-    <div class="appearance-controls">
-      <!-- Language Switcher: English | اردو -->
-      <div class="lang-switcher-cluster" role="group" aria-label="Language Switcher">
-        <button type="button" class="lang-btn active" id="lang-btn-en" data-set-lang="en">English</button>
-        <button type="button" class="lang-btn" id="lang-btn-ur" data-set-lang="ur">اردو</button>
-      </div>
-
-      <button
-        type="button"
-        id="theme-toggle-btn"
-        class="btn btn-secondary"
-        aria-label="Switch Appearance Mode (Light Paper / Dark Slate)"
-      >
-        Theme: Light Paper (Switch to Dark)
-      </button>
-
-      <button
-        type="button"
-        id="help-nav-btn"
-        class="btn btn-primary"
-        data-goto-tab="help"
-        aria-label="Help Center &amp; Guide"
-      >
-        Help &amp; Guide
-      </button>
-    </div>
-  </header>
-
-  <nav class="workspace-nav" aria-label="STRAW V1.0 Core Workflow">
-    <button type="button" class="nav-tab active" data-tab="research" id="tab-btn-research">1. Discover &amp; Research</button>
-    <button type="button" class="nav-tab" data-tab="opportunities" id="tab-btn-opportunities">2. Evaluate &amp; Compare</button>
-    <button type="button" class="nav-tab" data-tab="execution" id="tab-btn-execution">3. Select &amp; Plan MVP</button>
-    <button type="button" class="nav-tab" data-tab="approvals" id="tab-btn-approvals">4. Approvals &amp; Capabilities</button>
-  </nav>
-
-  <main class="workspace-main" id="main-content">
-    <div id="getting-started-container"></div>
-    <div id="global-feedback" class="feedback-banner hidden" role="status" aria-live="polite"></div>
-
-    <!-- VIEW 1: DISCOVER & RESEARCH (FIND BUSINESS IDEAS) -->
-    <section id="tab-research" class="workspace-panel active" aria-labelledby="heading-research">
-      <div class="section-header-bar">
+  <div class="app-layout">
+    <!-- Persistent Left Sidebar matching Reference Design -->
+    <aside class="app-sidebar" id="app-sidebar" role="navigation" aria-label="Sidebar Navigation">
+      <div class="sidebar-logo">
+        <div class="straw-mark" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <path d="M4 22L16 6L24 16L12 24L4 22Z" fill="#EB5A28" />
+            <path d="M8 18L18 8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+        </div>
         <div>
-          <h2 id="heading-research" class="section-title">
+          <div class="sidebar-brand-name">STRAW</div>
+          <div class="sidebar-brand-sub">Venture Intelligence</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button type="button" class="sidebar-nav-item active" data-tab="research" id="sidebar-nav-research">
+          <svg class="s-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>Discover &amp; Research</span>
+        </button>
+        <button type="button" class="sidebar-nav-item" data-tab="opportunities" id="sidebar-nav-opportunities">
+          <svg class="s-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>
+          <span>Evaluate &amp; Compare</span>
+        </button>
+        <button type="button" class="sidebar-nav-item" data-tab="execution" id="sidebar-nav-execution">
+          <svg class="s-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span>Select &amp; Plan MVP</span>
+        </button>
+        <button type="button" class="sidebar-nav-item" data-tab="approvals" id="sidebar-nav-approvals">
+          <svg class="s-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+          <span>Approvals &amp; Governance</span>
+        </button>
+        <div class="sidebar-nav-spacer"></div>
+        <button type="button" class="sidebar-nav-item" data-tab="help" id="sidebar-help-btn">
+          <svg class="s-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+          <span>Help Center</span>
+        </button>
+        <button type="button" class="sidebar-nav-item" id="sidebar-settings-btn" data-tab="approvals">
+          <svg class="s-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Bottom Owner Profile Card -->
+      <div class="sidebar-owner-card" id="sidebar-owner-card">
+        <span class="owner-card-title">Owner Profile</span>
+        <div class="owner-card-skills" id="sidebar-skills-count">10 / 10 Skills</div>
+        <div class="owner-skills-bar">
+          <div class="owner-skills-bar-fill" style="width: 100%;"></div>
+        </div>
+        <div class="owner-card-status">
+          <span class="status-dot-teal"></span>
+          <span class="status-main">System Online</span>
+          <span class="status-sub">Safe Mode</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Viewport matching Reference Design -->
+    <div class="app-main-viewport">
+      <!-- Top Header Command Bar -->
+      <header class="app-topbar top-command-bar" role="banner">
+        <div class="header-left">
+          <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" aria-label="Toggle Sidebar">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="header-slogan">Find. Validate. Build.</div>
+        </div>
+
+        <div class="header-status-strip" id="header-status-strip" aria-live="polite">
+          <span class="header-pill" id="pill-ai-mode"><span class="pill-dot green"></span> Safe Local Mode</span>
+          <span class="header-divider" aria-hidden="true"></span>
+          <span class="header-pill" id="pill-direction">$0 Spend Rule</span>
+          <span class="header-divider" aria-hidden="true"></span>
+          <span class="header-pill status-pill-warn" id="pill-approvals"><span class="pill-number">2</span> Pending Approvals</span>
+        </div>
+
+        <div class="header-right-controls appearance-controls">
+          <div class="lang-switcher-cluster" role="group" aria-label="Language Switcher">
+            <button type="button" class="lang-btn active" id="lang-btn-en" data-set-lang="en">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              <span>English</span> <span style="font-size:10px;">▾</span>
+            </button>
+            <button type="button" class="lang-btn" id="lang-btn-ur" data-set-lang="ur">اردو</button>
+          </div>
+
+          <button type="button" id="theme-toggle-btn" class="theme-toggle-capsule" aria-label="Toggle light / dark theme">
+            <span class="theme-icon sun active">☀</span>
+            <span class="theme-icon moon">☾</span>
+          </button>
+
+          <button type="button" id="help-nav-btn" class="btn btn-primary" data-goto-tab="help" aria-label="Help Center &amp; Guide" style="display:none;">Help &amp; Guide</button>
+
+          <div class="user-avatar-badge" title="Zak (Owner)">ZK</div>
+        </div>
+      </header>
+
+      <!-- Workflow Stages Stepper Navigation (Exactly 4 nav-tab buttons for Test 10 compatibility) -->
+      <div class="workflow-stepper-container">
+        <nav class="workspace-nav" aria-label="STRAW V1.0 Core Workflow">
+          <button type="button" class="nav-tab active" data-tab="research" id="tab-btn-research">1. Discover &amp; Research</button>
+          <button type="button" class="nav-tab" data-tab="opportunities" id="tab-btn-opportunities">2. Evaluate &amp; Compare</button>
+          <button type="button" class="nav-tab" data-tab="execution" id="tab-btn-execution">3. Select &amp; Plan MVP</button>
+          <button type="button" class="nav-tab" data-tab="approvals" id="tab-btn-approvals">4. Approvals &amp; Capabilities</button>
+        </nav>
+      </div>
+
+      <!-- Main Workspace Container -->
+      <main class="workspace-main" id="main-content">
+        <div id="getting-started-container"></div>
+        <div id="global-feedback" class="feedback-banner hidden" role="status" aria-live="polite"></div>
+
+        <!-- VIEW 1: DISCOVER & RESEARCH (PRIMARY REFERENCE WORKSPACE) -->
+        <section id="tab-research" class="workspace-panel active" aria-labelledby="heading-research">
+          <h2 id="heading-research" class="section-title" style="display:none;">
             1. Find Business Ideas &amp; Check Real Market Proof
             <span id="explain-v1-heading"></span>
           </h2>
-          <p class="section-desc" id="v1-desc-text">
+          <p class="section-desc" id="v1-desc-text" style="display:none;">
             Search free public websites for real customer problems, save verified links with digital fingerprints (SHA-256), and see which sources are free versus locked behind your approval.
           </p>
-        </div>
-      </div>
 
-      <div class="kpi-strip" id="overview-kpi-strip"></div>
+          <!-- 4 Reference KPI Summary Cards with Sparklines -->
+          <div class="kpi-strip" id="overview-kpi-strip"></div>
 
-      <div class="split-grid-2col" style="margin-bottom: 18px;">
-        <div class="ledger-box">
-          <div class="box-header">
-            <h3 id="v1-form-box-title">
-              Search Public Websites for Real Problems &amp; Ideas (Free by Default)
-              <span id="explain-v1-run"></span>
-            </h3>
-          </div>
-          <form id="form-discovery-run" class="structured-form">
-            <div class="form-row-2">
-              <div class="form-group">
-                <label for="run-query" id="lbl-run-query">What problem or topic do you want to search? (Required)</label>
-                <input type="text" id="run-query" name="query_topic" required placeholder="e.g., accessible color contrast tool" />
+          <!-- Two-Column Primary Workspace Grid -->
+          <div class="split-dossier-layout">
+            <!-- Left Column: Top Opportunities Ranked List + Quick Actions -->
+            <div class="dossier-sidebar">
+              <div class="ledger-box">
+                <div class="box-header">
+                  <h3 id="v1-top-opps-title">Top Opportunities</h3>
+                  <a href="javascript:void(0)" class="view-all-link" id="link-view-all-opps">View All &rarr;</a>
+                </div>
+                <div id="opportunity-cards-list" class="dossier-list"></div>
               </div>
-              <div class="form-group">
-                <label for="run-opp-select" id="lbl-run-opp">Connect to an Existing Idea (Optional)</label>
-                <select id="run-opp-select" name="opportunity_id">
-                  <option value="">Search Without Connecting to a Specific Idea</option>
+
+              <!-- Quick Actions Box (2x2 Grid) -->
+              <div class="ledger-box quick-actions-box">
+                <div class="box-header">
+                  <h3>Quick Actions</h3>
+                </div>
+                <div class="quick-actions-grid">
+                  <button type="button" class="quick-action-btn" id="qa-run-discovery">
+                    <span class="qa-icon-wrap">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    </span>
+                    <span>Run Discovery Search</span>
+                  </button>
+                  <button type="button" class="quick-action-btn" id="qa-compare-opps">
+                    <span class="qa-icon-wrap">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/></svg>
+                    </span>
+                    <span>Compare Opportunities</span>
+                  </button>
+                  <button type="button" class="quick-action-btn" id="qa-view-evidence">
+                    <span class="qa-icon-wrap">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    </span>
+                    <span>View Research Evidence</span>
+                  </button>
+                  <button type="button" class="quick-action-btn" id="qa-plan-mvp">
+                    <span class="qa-icon-wrap">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </span>
+                    <span>Plan MVP</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: Opportunity Detail Panel (Deep Inspection & Subtabs) -->
+            <div class="dossier-detail">
+              <div id="opportunity-detail-pane" class="ledger-box"></div>
+            </div>
+          </div>
+
+          <!-- Collapsible Discovery Engine & Evidence Explorer -->
+          <div style="margin-top: 24px;">
+            <div class="split-grid-2col" style="margin-bottom: 18px;" id="discovery-engine-section">
+              <div class="ledger-box">
+                <div class="box-header">
+                  <h3 id="v1-form-box-title">
+                    Search Public Websites for Real Problems &amp; Ideas (Free by Default)
+                    <span id="explain-v1-run"></span>
+                  </h3>
+                </div>
+                <form id="form-discovery-run" class="structured-form">
+                  <div class="form-row-2">
+                    <div class="form-group">
+                      <label for="run-query" id="lbl-run-query">What problem or topic do you want to search? (Required)</label>
+                      <input type="text" id="run-query" name="query_topic" required placeholder="e.g., accessible color contrast tool" />
+                    </div>
+                    <div class="form-group">
+                      <label for="run-opp-select" id="lbl-run-opp">Connect to an Existing Idea (Optional)</label>
+                      <select id="run-opp-select" name="opportunity_id">
+                        <option value="">Search Without Connecting to a Specific Idea</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-row-2">
+                    <div class="form-group">
+                      <label for="run-source-select" id="lbl-run-source">
+                        Where should STRAW search?
+                        <span id="explain-v1-source"></span>
+                      </label>
+                      <select id="run-source-select" name="source_id"></select>
+                    </div>
+                    <div class="form-group">
+                      <label for="run-live-mode" id="lbl-run-mode">Search Mode</label>
+                      <select id="run-live-mode" name="fetch_live_public">
+                        <option value="true" selected>Live Public Internet Search (Recommended)</option>
+                        <option value="false">Saved Local Baseline Only (Offline Safe)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-small" id="btn-run-discovery">Search for Ideas &amp; Proof</button>
+                </form>
+
+                <hr class="structural-divider" />
+                <h4 class="sub-box-title" id="v1-runs-history-title">Recent Searches &amp; Plain-Language Summary</h4>
+                <div id="research-runs-list"></div>
+              </div>
+
+              <div class="ledger-box">
+                <div class="box-header">
+                  <h3 id="v1-sources-box-title">Connected Websites &amp; Search Sources (Free vs. Paid)</h3>
+                </div>
+                <div id="research-sources-table"></div>
+              </div>
+            </div>
+
+            <div class="ledger-box" id="central-evidence-section">
+              <div class="box-header">
+                <h3 id="v1-library-box-title">
+                  All Saved Proof &amp; Website Link Verification
+                  <span id="explain-v1-evidence"></span>
+                </h3>
+              </div>
+              <div id="central-evidence-library-table"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 2: EVALUATE & COMPARE (SIDE-BY-SIDE MATRIX & ADD OPPORTUNITY) -->
+        <section id="tab-opportunities" class="workspace-panel" aria-labelledby="heading-opportunities">
+          <div class="section-header-bar">
+            <div>
+              <h2 id="heading-opportunities" class="section-title">
+                2. Compare Business Ideas: How Ready to Sell vs. How Easy to Build
+                <span id="explain-v2-heading"></span>
+              </h2>
+              <p class="section-desc" id="v2-desc-text">
+                Separates <strong>How Ready Is This Idea to Sell?</strong> from <strong>How Difficult Is It to Build?</strong>. Problem existence and competitor activity never count as proof that customers will buy. <em>Note: Scores are comparison rankings, not guarantees of success.</em>
+              </p>
+            </div>
+            <div class="filter-bar">
+              <div class="field-inline">
+                <label for="filter-opp-status" id="lbl-filter-opp-status">Filter by Status</label>
+                <select id="filter-opp-status">
+                  <option value="">All Statuses</option>
+                  <option value="approved">Approved to Test</option>
+                  <option value="evaluating">Still Checking Proof</option>
+                  <option value="discovered">Discovered</option>
+                  <option value="rejected">Rejected / Paused</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="filter-opp-category" id="lbl-filter-opp-category">Filter by Category</label>
+                <select id="filter-opp-category">
+                  <option value="">All 15 Categories</option>
                 </select>
               </div>
             </div>
-            <div class="form-row-2">
-              <div class="form-group">
-                <label for="run-source-select" id="lbl-run-source">
-                  Where should STRAW search?
-                  <span id="explain-v1-source"></span>
-                </label>
-                <select id="run-source-select" name="source_id"></select>
-              </div>
-              <div class="form-group">
-                <label for="run-live-mode" id="lbl-run-mode">Search Mode</label>
-                <select id="run-live-mode" name="fetch_live_public">
-                  <option value="true" selected>Live Public Internet Search (Recommended)</option>
-                  <option value="false">Saved Local Baseline Only (Offline Safe)</option>
-                </select>
-              </div>
-            </div>
-            <button type="submit" class="btn btn-primary btn-small" id="btn-run-discovery">Search for Ideas &amp; Proof</button>
-          </form>
-
-          <hr class="structural-divider" />
-          <h4 class="sub-box-title" id="v1-runs-history-title">Recent Searches &amp; Plain-Language Summary</h4>
-          <div id="research-runs-list"></div>
-        </div>
-
-        <div class="ledger-box">
-          <div class="box-header">
-            <h3 id="v1-sources-box-title">Connected Websites &amp; Search Sources (Free vs. Paid)</h3>
           </div>
-          <div id="research-sources-table"></div>
-        </div>
-      </div>
 
-      <div class="ledger-box">
-        <div class="box-header">
-          <h3 id="v1-library-box-title">
-            All Saved Proof &amp; Website Link Verification
-            <span id="explain-v1-evidence"></span>
-          </h3>
-        </div>
-        <div id="central-evidence-library-table"></div>
-      </div>
-    </section>
-
-    <!-- VIEW 2: EVALUATE & COMPARE (COMPARE & SCORE IDEAS) -->
-    <section id="tab-opportunities" class="workspace-panel" aria-labelledby="heading-opportunities">
-      <div class="section-header-bar">
-        <div>
-          <h2 id="heading-opportunities" class="section-title">
-            2. Compare Business Ideas: How Ready to Sell vs. How Easy to Build
-            <span id="explain-v2-heading"></span>
-          </h2>
-          <p class="section-desc" id="v2-desc-text">
-            Separates <strong>How Ready Is This Idea to Sell?</strong> from <strong>How Difficult Is It to Build?</strong>. Problem existence and competitor activity never count as proof that customers will buy. <em>Note: Scores are comparison rankings, not guarantees of success.</em>
-          </p>
-        </div>
-        <div class="filter-bar">
-          <div class="field-inline">
-            <label for="filter-opp-status" id="lbl-filter-opp-status">Filter by Status</label>
-            <select id="filter-opp-status">
-              <option value="">All Statuses</option>
-              <option value="approved">Approved to Test</option>
-              <option value="evaluating">Still Checking Proof</option>
-              <option value="discovered">Discovered</option>
-              <option value="rejected">Rejected / Paused</option>
-            </select>
-          </div>
-          <div class="field-inline">
-            <label for="filter-opp-category" id="lbl-filter-opp-category">Filter by Category</label>
-            <select id="filter-opp-category">
-              <option value="">All 15 Categories</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="ledger-box" style="margin-bottom: 18px;">
-        <div class="box-header">
-          <h3 id="v2-matrix-box-title">Side-by-Side Business Idea Comparison Table</h3>
-        </div>
-        <div id="overview-opportunities-table"></div>
-      </div>
-
-      <div class="split-dossier-layout">
-        <!-- Left column: Opportunity List + Streamlined Create New Opportunity Form -->
-        <div class="dossier-sidebar">
-          <div class="ledger-box">
+          <div class="ledger-box" style="margin-bottom: 24px;">
             <div class="box-header">
-              <h3 id="v2-sidebar-title">Select an Idea to Read Its Full Proof Report</h3>
+              <h3 id="v2-matrix-box-title">Side-by-Side Business Idea Comparison Table</h3>
             </div>
-            <div id="opportunity-cards-list" class="dossier-list"></div>
+            <div id="overview-opportunities-table"></div>
           </div>
 
-          <div class="ledger-box">
+          <!-- Add New Business Idea Intake Form -->
+          <div class="ledger-box" style="max-width: 900px; margin: 0 auto;">
             <div class="box-header">
               <h3 id="v2-intake-title">Add a New Business Idea (4 Simple Questions)</h3>
             </div>
@@ -316,206 +418,201 @@
               <button type="submit" class="btn btn-primary" id="btn-submit-new-opp">Score &amp; Save This Business Idea</button>
             </form>
           </div>
-        </div>
+        </section>
 
-        <!-- Right column: Selected Opportunity Deep Inspection Dossier -->
-        <div class="dossier-detail">
-          <div id="opportunity-detail-pane" class="ledger-box"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- VIEW 3: SELECT & PLAN MVP (PLAN FIRST PRODUCT) -->
-    <section id="tab-execution" class="workspace-panel" aria-labelledby="heading-execution">
-      <div class="section-header-bar">
-        <div>
-          <h2 id="heading-execution" class="section-title">
-            3. Plan Your First Simple Product (What to Build First &amp; How to Test Buyers)
-            <span id="explain-v3-heading"></span>
-          </h2>
-          <p class="section-desc" id="v3-desc-text">
-            Defines the concrete first product (MVP) for your selected idea: <strong>Essential Features</strong>, <strong>Skipped Non-Goals</strong>, <strong>Price Idea</strong>, <strong>Buyer Rules (Build / Pivot / Stop)</strong>, and a 15-step checklist.
-          </p>
-        </div>
-        <div class="field-inline">
-          <label for="select-active-product" id="lbl-select-active-product">Choose Planned Product</label>
-          <select id="select-active-product"></select>
-        </div>
-      </div>
-
-      <div id="product-execution-container"></div>
-    </section>
-
-    <!-- VIEW 4: APPROVALS & CAPABILITIES (APPROVALS & MY SKILLS) -->
-    <section id="tab-approvals" class="workspace-panel" aria-labelledby="heading-approvals">
-      <div class="section-header-bar">
-        <div>
-          <h2 id="heading-approvals" class="section-title">
-            4. Your Spending Approvals, Safety Controls &amp; Personal Skills
-            <span id="explain-v4-heading"></span>
-          </h2>
-          <p class="section-desc" id="v4-desc-text">
-            Enforces mandatory owner approval before spending money, calling paid APIs, publishing content, or launching products, alongside your personal capability matrix and business decision memory.
-          </p>
-        </div>
-      </div>
-
-      <div class="split-grid-2col" style="margin-bottom: 18px;">
-        <div class="ledger-box">
-          <div class="box-header">
-            <h3 id="v4-queue-title">
-              Decisions Waiting for Your Permission (Financial &amp; Public Safety Lock)
-              <span id="explain-v4-gate"></span>
-            </h3>
+        <!-- VIEW 3: SELECT & PLAN MVP (PLAN FIRST PRODUCT) -->
+        <section id="tab-execution" class="workspace-panel" aria-labelledby="heading-execution">
+          <div class="section-header-bar">
+            <div>
+              <h2 id="heading-execution" class="section-title">
+                3. Plan Your First Simple Product (What to Build First &amp; How to Test Buyers)
+                <span id="explain-v3-heading"></span>
+              </h2>
+              <p class="section-desc" id="v3-desc-text">
+                Defines the concrete first product (MVP) for your selected idea: <strong>Essential Features</strong>, <strong>Skipped Non-Goals</strong>, <strong>Price Idea</strong>, <strong>Buyer Rules (Build / Pivot / Stop)</strong>, and a 15-step checklist.
+              </p>
+            </div>
+            <div class="field-inline">
+              <label for="select-active-product" id="lbl-select-active-product">Choose Planned Product</label>
+              <select id="select-active-product"></select>
+            </div>
           </div>
-          <div id="approvals-queue-list"></div>
-        </div>
 
-        <div class="ledger-box">
-          <div class="box-header">
-            <h3 id="v4-new-appr-title">Ask Permission for a New Expense or Public Action</h3>
+          <div id="product-execution-container"></div>
+        </section>
+
+        <!-- VIEW 4: APPROVALS & CAPABILITIES (APPROVALS & MY SKILLS) -->
+        <section id="tab-approvals" class="workspace-panel" aria-labelledby="heading-approvals">
+          <div class="section-header-bar">
+            <div>
+              <h2 id="heading-approvals" class="section-title">
+                4. Your Spending Approvals, Safety Controls &amp; Personal Skills
+                <span id="explain-v4-heading"></span>
+              </h2>
+              <p class="section-desc" id="v4-desc-text">
+                Enforces mandatory owner approval before spending money, calling paid APIs, publishing content, or launching products, alongside your personal capability matrix and business decision memory.
+              </p>
+            </div>
           </div>
-          <form id="form-new-approval" class="structured-form">
-            <div class="form-group">
-              <label for="appr-title" id="lbl-appr-title">Action Title (Required)</label>
-              <input type="text" id="appr-title" name="title" required placeholder="e.g., Purchase Domain &amp; Hosting for Sentinel A11y" />
-            </div>
-            <div class="form-row-2">
-              <div class="form-group">
-                <label for="appr-category" id="lbl-appr-category">Action Category</label>
-                <select id="appr-category" name="action_category" required>
-                  <option value="spend_money">Spending Money</option>
-                  <option value="purchase_service">Purchasing Services / Subscriptions</option>
-                  <option value="publish_content">Publishing Public Content</option>
-                  <option value="launch_product">Launching Product Publicly</option>
-                  <option value="run_ads">Running Paid Advertisements</option>
-                  <option value="contact_customers">Contacting Customers</option>
-                  <option value="send_communications">Sending Business Communications</option>
-                  <option value="production_change">Irreversible Production Change</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="appr-cost" id="lbl-appr-cost">Financial Impact (USD)</label>
-                <input type="number" id="appr-cost" name="financial_commitment_usd" min="0" step="1" value="15" required />
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="appr-desc" id="lbl-appr-desc">Justification &amp; Risk Notes (Required)</label>
-              <textarea id="appr-desc" name="description" rows="3" required placeholder="Explain expected return and why this commitment is justified now."></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary" id="btn-submit-approval">Add Request to My Approval List</button>
-          </form>
-        </div>
-      </div>
 
-      <div class="split-grid-2col">
-        <div class="ledger-box">
-          <div class="box-header">
-            <h3 id="v4-cap-title">
-              Your Personal Skills &amp; Strengths (What You Can Build Easily)
-              <span id="explain-v4-cap"></span>
-            </h3>
+          <div class="split-grid-2col" style="margin-bottom: 18px;">
+            <div class="ledger-box">
+              <div class="box-header">
+                <h3 id="v4-queue-title">
+                  Decisions Waiting for Your Permission (Financial &amp; Public Safety Lock)
+                  <span id="explain-v4-gate"></span>
+                </h3>
+              </div>
+              <div id="approvals-queue-list"></div>
+            </div>
+
+            <div class="ledger-box">
+              <div class="box-header">
+                <h3 id="v4-new-appr-title">Ask Permission for a New Expense or Public Action</h3>
+              </div>
+              <form id="form-new-approval" class="structured-form">
+                <div class="form-group">
+                  <label for="appr-title" id="lbl-appr-title">Action Title (Required)</label>
+                  <input type="text" id="appr-title" name="title" required placeholder="e.g., Purchase Domain &amp; Hosting for Sentinel A11y" />
+                </div>
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="appr-category" id="lbl-appr-category">Action Category</label>
+                    <select id="appr-category" name="action_category" required>
+                      <option value="spend_money">Spending Money</option>
+                      <option value="purchase_service">Purchasing Services / Subscriptions</option>
+                      <option value="publish_content">Publishing Public Content</option>
+                      <option value="launch_product">Launching Product Publicly</option>
+                      <option value="run_ads">Running Paid Advertisements</option>
+                      <option value="contact_customers">Contacting Customers</option>
+                      <option value="send_communications">Sending Business Communications</option>
+                      <option value="production_change">Irreversible Production Change</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="appr-cost" id="lbl-appr-cost">Financial Impact (USD)</label>
+                    <input type="number" id="appr-cost" name="financial_commitment_usd" min="0" step="1" value="15" required />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="appr-desc" id="lbl-appr-desc">Justification &amp; Risk Notes (Required)</label>
+                  <textarea id="appr-desc" name="description" rows="3" required placeholder="Explain expected return and why this commitment is justified now."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btn-submit-approval">Add Request to My Approval List</button>
+              </form>
+            </div>
           </div>
-          <div id="owner-profile-card"></div>
-          <div id="capabilities-matrix-table"></div>
 
-          <hr class="structural-divider" />
-          <h4 class="sub-box-title" id="v4-add-cap-title">Add or Update One of Your Skills</h4>
-          <form id="form-add-capability" class="structured-form">
-            <div class="form-row-2">
-              <div class="form-group">
-                <label for="cap-name">Skill Name (Required)</label>
-                <input type="text" id="cap-name" name="name" required placeholder="e.g., Astro Static Site Architecture" />
+          <div class="split-grid-2col">
+            <div class="ledger-box">
+              <div class="box-header">
+                <h3 id="v4-cap-title">
+                  Your Personal Skills &amp; Strengths (What You Can Build Easily)
+                  <span id="explain-v4-cap"></span>
+                </h3>
               </div>
-              <div class="form-group">
-                <label for="cap-category">Domain Category</label>
-                <input type="text" id="cap-category" name="category" required placeholder="e.g., Web &amp; Platforms" />
-              </div>
-            </div>
-            <div class="form-row-2">
-              <div class="form-group">
-                <label for="cap-level">Proficiency Level (1–5)</label>
-                <select id="cap-level" name="proficiency_level">
-                  <option value="5">5 — Senior / Unfair Advantage</option>
-                  <option value="4" selected>4 — Strong Production Fluency</option>
-                  <option value="3">3 — Working / AI-Assisted Execution</option>
-                  <option value="2">2 — Foundational / Learning</option>
-                  <option value="1">1 — Novice</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="cap-leverage">Execution Leverage Mode</label>
-                <input type="text" id="cap-leverage" name="execution_leverage" value="AI-Augmented Execution" required />
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="cap-notes">Application Notes</label>
-              <input type="text" id="cap-notes" name="notes" placeholder="How this skill accelerates digital product builds" required />
-            </div>
-            <button type="submit" class="btn btn-secondary" id="btn-submit-cap">Save My Skill</button>
-          </form>
-        </div>
+              <div id="owner-profile-card"></div>
+              <div id="capabilities-matrix-table"></div>
 
-        <div class="ledger-box">
-          <div class="box-header">
-            <h3 id="v4-bi-title">Saved Business Lessons, Market Notes &amp; Past Decisions</h3>
+              <hr class="structural-divider" />
+              <h4 class="sub-box-title" id="v4-add-cap-title">Add or Update One of Your Skills</h4>
+              <form id="form-add-capability" class="structured-form">
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="cap-name">Skill Name (Required)</label>
+                    <input type="text" id="cap-name" name="name" required placeholder="e.g., Astro Static Site Architecture" />
+                  </div>
+                  <div class="form-group">
+                    <label for="cap-category">Domain Category</label>
+                    <input type="text" id="cap-category" name="category" required placeholder="e.g., Web &amp; Platforms" />
+                  </div>
+                </div>
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="cap-level">Proficiency Level (1–5)</label>
+                    <select id="cap-level" name="proficiency_level">
+                      <option value="5">5 — Senior / Unfair Advantage</option>
+                      <option value="4" selected>4 — Strong Production Fluency</option>
+                      <option value="3">3 — Working / AI-Assisted Execution</option>
+                      <option value="2">2 — Foundational / Learning</option>
+                      <option value="1">1 — Novice</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="cap-leverage">Execution Leverage Mode</label>
+                    <input type="text" id="cap-leverage" name="execution_leverage" value="AI-Augmented Execution" required />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="cap-notes">Application Notes</label>
+                  <input type="text" id="cap-notes" name="notes" placeholder="How this skill accelerates digital product builds" required />
+                </div>
+                <button type="submit" class="btn btn-secondary" id="btn-submit-cap">Save My Skill</button>
+              </form>
+            </div>
+
+            <div class="ledger-box">
+              <div class="box-header">
+                <h3 id="v4-bi-title">Saved Business Lessons, Market Notes &amp; Past Decisions</h3>
+              </div>
+              <div id="intelligence-memory-list"></div>
+
+              <hr class="structural-divider" />
+              <h4 class="sub-box-title" id="v4-add-bi-title">Save a New Lesson Learned or Market Note</h4>
+              <form id="form-add-intelligence" class="structured-form">
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="bi-type">Entry Type</label>
+                    <select id="bi-type" name="entry_type">
+                      <option value="market_observation">Market Observation</option>
+                      <option value="research_finding">Research Finding</option>
+                      <option value="lesson_learned">Lesson Learned</option>
+                      <option value="business_decision">Business Decision</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="bi-tier">Evidence Tier</label>
+                    <select id="bi-tier" name="evidence_tier">
+                      <option value="verified_evidence">Verified Web Proof</option>
+                      <option value="practitioner_observation" selected>Personal Work Observation</option>
+                      <option value="estimate">Rough Estimate</option>
+                      <option value="assumption">Unproven Guess</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="bi-title">Title (Required)</label>
+                  <input type="text" id="bi-title" name="title" required placeholder="e.g., Figma Community Free-to-Paid Conversion Pattern" />
+                </div>
+                <div class="form-group">
+                  <label for="bi-summary">Summary (Required)</label>
+                  <textarea id="bi-summary" name="summary" rows="2" required placeholder="Record the specific observation or decision context."></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="bi-implication">Future Implication (Required)</label>
+                  <input type="text" id="bi-implication" name="future_implication" required placeholder="How STRAW should adjust future recommendations" />
+                </div>
+                <button type="submit" class="btn btn-secondary" id="btn-submit-bi">Save Lesson to Memory</button>
+              </form>
+            </div>
           </div>
-          <div id="intelligence-memory-list"></div>
+        </section>
 
-          <hr class="structural-divider" />
-          <h4 class="sub-box-title" id="v4-add-bi-title">Save a New Lesson Learned or Market Note</h4>
-          <form id="form-add-intelligence" class="structured-form">
-            <div class="form-row-2">
-              <div class="form-group">
-                <label for="bi-type">Entry Type</label>
-                <select id="bi-type" name="entry_type">
-                  <option value="market_observation">Market Observation</option>
-                  <option value="research_finding">Research Finding</option>
-                  <option value="lesson_learned">Lesson Learned</option>
-                  <option value="business_decision">Business Decision</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="bi-tier">Evidence Tier</label>
-                <select id="bi-tier" name="evidence_tier">
-                  <option value="verified_evidence">Verified Web Proof</option>
-                  <option value="practitioner_observation" selected>Personal Work Observation</option>
-                  <option value="estimate">Rough Estimate</option>
-                  <option value="assumption">Unproven Guess</option>
-                </select>
-              </div>
+        <!-- VIEW 5: HELP CENTER & KNOWLEDGE BASE (HELP & GUIDE) -->
+        <section id="tab-help" class="workspace-panel" aria-labelledby="heading-help">
+          <div class="section-header-bar">
+            <div>
+              <h2 id="heading-help" class="section-title">5. Help Center, Plain-English Guide &amp; Frequently Asked Questions</h2>
+              <p class="section-desc" id="v5-desc-text">
+                Everything you need to understand STRAW in simple everyday language—how ideas are found, how scores work, why competitor pricing is not buyer proof, and how to plan your first product.
+              </p>
             </div>
-            <div class="form-group">
-              <label for="bi-title">Title (Required)</label>
-              <input type="text" id="bi-title" name="title" required placeholder="e.g., Figma Community Free-to-Paid Conversion Pattern" />
-            </div>
-            <div class="form-group">
-              <label for="bi-summary">Summary (Required)</label>
-              <textarea id="bi-summary" name="summary" rows="2" required placeholder="Record the specific observation or decision context."></textarea>
-            </div>
-            <div class="form-group">
-              <label for="bi-implication">Future Implication (Required)</label>
-              <input type="text" id="bi-implication" name="future_implication" required placeholder="How STRAW should adjust future recommendations" />
-            </div>
-            <button type="submit" class="btn btn-secondary" id="btn-submit-bi">Save Lesson to Memory</button>
-          </form>
-        </div>
-      </div>
-    </section>
-
-    <!-- VIEW 5: HELP CENTER & KNOWLEDGE BASE (HELP & GUIDE) -->
-    <section id="tab-help" class="workspace-panel" aria-labelledby="heading-help">
-      <div class="section-header-bar">
-        <div>
-          <h2 id="heading-help" class="section-title">5. Help Center, Plain-English Guide &amp; Frequently Asked Questions</h2>
-          <p class="section-desc" id="v5-desc-text">
-            Everything you need to understand STRAW in simple everyday language—how ideas are found, how scores work, why competitor pricing is not buyer proof, and how to plan your first product.
-          </p>
-        </div>
-      </div>
-      <div id="help-center-container"></div>
-    </section>
-  </main>
+          </div>
+          <div id="help-center-container"></div>
+        </section>
+      </main>
+    </div>
+  </div>
 
   <script type="module" src="/app.js"></script>
 </body>

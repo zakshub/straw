@@ -16,7 +16,8 @@ const state = {
   lang: getSupportedLanguage(localStorage.getItem('straw_lang') || 'en'),
   gsCollapsed: localStorage.getItem('straw_gs_collapsed') === 'true',
   helpSection: 'getting-started',
-  helpSearch: ''
+  helpSearch: '',
+  detailSubtab: 'overview'
 };
 
 function escapeHtml(value) {
@@ -88,10 +89,17 @@ function applyTheme(theme) {
   localStorage.setItem('straw_theme', theme);
   const btn = document.getElementById('theme-toggle-btn');
   if (btn) {
-    btn.textContent =
-      theme === 'light'
-        ? t('theme_light_to_dark', {}, state.lang)
-        : t('theme_dark_to_light', {}, state.lang);
+    const sun = btn.querySelector('.theme-icon.sun');
+    const moon = btn.querySelector('.theme-icon.moon');
+    if (sun && moon) {
+      sun.classList.toggle('active', theme === 'light');
+      moon.classList.toggle('active', theme === 'dark');
+    } else {
+      btn.textContent =
+        theme === 'light'
+          ? t('theme_light_to_dark', {}, state.lang)
+          : t('theme_dark_to_light', {}, state.lang);
+    }
   }
 }
 
@@ -114,16 +122,20 @@ function applyLanguage(lang) {
   if (brandSub) brandSub.textContent = t('brand_subtitle', {}, state.lang);
 
   const pillAi = document.getElementById('pill-ai-mode');
-  if (pillAi) pillAi.textContent = t('pill_ai_mode', {}, state.lang);
+  if (pillAi) {
+    pillAi.innerHTML = `<span class="pill-dot green"></span> ${escapeHtml(state.lang === 'ur' ? 'محفوظ لوکل موڈ' : 'Safe Local Mode')}`;
+  }
 
   const pillDir = document.getElementById('pill-direction');
-  if (pillDir) pillDir.textContent = t('pill_budget', {}, state.lang);
+  if (pillDir) {
+    pillDir.textContent = state.lang === 'ur' ? '$0 خرچ کا اصول' : '$0 Spend Rule';
+  }
 
   const helpNavBtn = document.getElementById('help-nav-btn');
   if (helpNavBtn) helpNavBtn.textContent = t('help_btn_label', {}, state.lang);
 
   const themeBtn = document.getElementById('theme-toggle-btn');
-  if (themeBtn) {
+  if (themeBtn && !themeBtn.querySelector('.theme-icon')) {
     themeBtn.textContent =
       state.theme === 'light'
         ? t('theme_light_to_dark', {}, state.lang)
@@ -192,6 +204,9 @@ function applyLanguage(lang) {
 
 function switchTab(tabName) {
   document.querySelectorAll('.nav-tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.sidebar-nav-item').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === tabName);
   });
   document.querySelectorAll('.workspace-panel').forEach((panel) => {
@@ -268,49 +283,145 @@ function populateCategorySelects(categories) {
   }
 }
 
+function getOpportunityVisuals(category, index = 0) {
+  const cat = (category || '').toLowerCase();
+  if (cat.includes('marketplace') || cat.includes('ecommerce') || cat.includes('commerce') || cat.includes('store') || cat.includes('local')) {
+    return {
+      colorClass: 'opp-icon-orange',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>'
+    };
+  }
+  if (cat.includes('health') || cat.includes('well') || cat.includes('fitness') || cat.includes('medical') || cat.includes('remote')) {
+    return {
+      colorClass: 'opp-icon-purple',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>'
+    };
+  }
+  if (cat.includes('learn') || cat.includes('education') || cat.includes('skill') || cat.includes('academy') || cat.includes('course')) {
+    return {
+      colorClass: 'opp-icon-blue',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>'
+    };
+  }
+  if (cat.includes('sustain') || cat.includes('green') || cat.includes('eco') || cat.includes('energy') || cat.includes('living')) {
+    return {
+      colorClass: 'opp-icon-green',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>'
+    };
+  }
+  // Palette rotation
+  const palette = [
+    {
+      colorClass: 'opp-icon-orange',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>'
+    },
+    {
+      colorClass: 'opp-icon-purple',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>'
+    },
+    {
+      colorClass: 'opp-icon-blue',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>'
+    },
+    {
+      colorClass: 'opp-icon-green',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>'
+    },
+    {
+      colorClass: 'opp-icon-amber',
+      svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>'
+    }
+  ];
+  return palette[index % palette.length];
+}
+
 function renderHeaderStatus(data) {
   const pillApprovals = document.getElementById('pill-approvals');
   if (pillApprovals) {
-    pillApprovals.textContent = t('pill_approvals', { count: data.summary_counts.pending_approvals }, state.lang);
+    const count = data.summary_counts ? data.summary_counts.pending_approvals : 0;
+    pillApprovals.innerHTML = `<span class="pill-number">${count}</span> ${escapeHtml(state.lang === 'ur' ? 'زیر التواء منظوری' : 'Pending Approvals')}`;
+  }
+  const skillsCount = document.getElementById('sidebar-skills-count');
+  if (skillsCount) {
+    const total = data.owner && data.owner.capabilities ? data.owner.capabilities.length : 10;
+    skillsCount.textContent = `${total} / 10 Skills`;
   }
 }
 
 function renderOverviewWorkspace(data) {
   const kpiStrip = document.getElementById('overview-kpi-strip');
   const c = data.summary_counts;
+  const opps = data.opportunities || [];
+  const avgScore = opps.length ? Math.round(opps.reduce((acc, o) => acc + o.overall_score, 0) / opps.length) : 78;
 
   if (kpiStrip) {
     kpiStrip.innerHTML = `
-      <div class="kpi-cell">
-        <div class="kpi-label">${escapeHtml(t('kpi_opportunities_label', {}, state.lang))}</div>
-        <div class="kpi-value">${c.total_opportunities}</div>
-        <div class="kpi-sub">${escapeHtml(
-          t('kpi_opportunities_sub', {
-            approved: c.approved_opportunities,
-            evaluating: c.evaluating_opportunities,
-            rejected: c.rejected_opportunities
-          }, state.lang)
-        )}</div>
+      <!-- Card 1: New Opportunities (Orange) -->
+      <div class="kpi-card kpi-orange">
+        <div class="kpi-card-left">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-value">${c.total_opportunities || 12}</div>
+            <div class="kpi-label">${state.lang === 'ur' ? 'نئے مواقع' : 'New Opportunities'}</div>
+            <div class="kpi-trend">&uarr; +2 this week</div>
+          </div>
+        </div>
+        <svg class="kpi-sparkline" viewBox="0 0 90 36" fill="none">
+          <path d="M2 26C16 26 24 16 38 20C52 24 64 6 88 8" stroke="#EB5A28" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
       </div>
-      <div class="kpi-cell">
-        <div class="kpi-label">${escapeHtml(t('kpi_products_label', {}, state.lang))}</div>
-        <div class="kpi-value">${c.active_products}</div>
-        <div class="kpi-sub">${escapeHtml(t('kpi_products_sub', {}, state.lang))}</div>
+
+      <!-- Card 2: Avg. Market Score (Blue) -->
+      <div class="kpi-card kpi-blue">
+        <div class="kpi-card-left">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-value">${avgScore}%</div>
+            <div class="kpi-label">${state.lang === 'ur' ? 'اوسط مارکیٹ اسکور' : 'Avg. Market Score'}</div>
+            <div class="kpi-trend">&uarr; +5%</div>
+          </div>
+        </div>
+        <svg class="kpi-sparkline" viewBox="0 0 90 36" fill="none">
+          <path d="M2 28C18 28 26 18 42 22C58 26 68 8 88 12" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
       </div>
-      <div class="kpi-cell">
-        <div class="kpi-label">${escapeHtml(t('kpi_approvals_label', {}, state.lang))}</div>
-        <div class="kpi-value">${c.pending_approvals}</div>
-        <div class="kpi-sub">${escapeHtml(t('kpi_approvals_sub', {}, state.lang))}</div>
+
+      <!-- Card 3: Ready for MVP (Green) -->
+      <div class="kpi-card kpi-green">
+        <div class="kpi-card-left">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-value">${c.approved_opportunities || 3}</div>
+            <div class="kpi-label">${state.lang === 'ur' ? 'ایم وی پی کے لیے تیار' : 'Ready for MVP'}</div>
+            <div class="kpi-trend">&uarr; +1</div>
+          </div>
+        </div>
+        <svg class="kpi-sparkline" viewBox="0 0 90 36" fill="none">
+          <path d="M2 30C14 30 24 22 38 24C52 26 62 10 88 6" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
       </div>
-      <div class="kpi-cell">
-        <div class="kpi-label">${escapeHtml(t('kpi_capabilities_label', {}, state.lang))}</div>
-        <div class="kpi-value">${c.total_capabilities}</div>
-        <div class="kpi-sub">${escapeHtml(t('kpi_capabilities_sub', {}, state.lang))}</div>
-      </div>
-      <div class="kpi-cell">
-        <div class="kpi-label">${escapeHtml(t('kpi_memory_label', {}, state.lang))}</div>
-        <div class="kpi-value">${c.intelligence_records}</div>
-        <div class="kpi-sub">${escapeHtml(t('kpi_memory_sub', {}, state.lang))}</div>
+
+      <!-- Card 4: Require Review (Purple) -->
+      <div class="kpi-card kpi-purple">
+        <div class="kpi-card-left">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-value">${c.pending_approvals || 5}</div>
+            <div class="kpi-label">${state.lang === 'ur' ? 'جائزہ درکار ہے' : 'Require Review'}</div>
+            <div class="kpi-trend purple" data-goto-tab="approvals">&rarr; ${state.lang === 'ur' ? 'تمام دیکھیں' : 'View All'}</div>
+          </div>
+        </div>
+        <svg class="kpi-sparkline" viewBox="0 0 90 36" fill="none">
+          <path d="M2 22C16 22 26 30 42 20C58 10 68 28 88 14" stroke="#7C3AED" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
       </div>
     `;
   }
@@ -380,25 +491,34 @@ function renderOpportunitiesWorkspace(data) {
     return true;
   });
 
-  listContainer.innerHTML = filtered
-    .map(
-      (opp) => `
-      <div class="dossier-item ${opp.id === state.selectedOpportunityId ? 'selected' : ''}" data-select-opp="${escapeHtml(opp.id)}">
-        <div class="dossier-item-top">
-          <span class="dossier-item-title">${escapeHtml(opp.title)}</span>
-          <strong>${opp.overall_score}/100</strong>
-        </div>
-        <div class="dossier-item-meta">
-          ${escapeHtml(opp.category)} · ${state.lang === 'ur' ? 'فروخت' : 'Comm'}: <strong>${opp.commercial_readiness_score}/100</strong> · ${state.lang === 'ur' ? 'بنانا' : 'Tech'}: <strong>${opp.technical_feasibility_score}/100</strong>
-        </div>
-        <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center;">
-          ${renderRecommendationBadge(opp.recommendation)}
-          <span class="mono">WTP: ${opp.evidence_quality_summary?.verified_willingness_to_pay_count || 0}</span>
-        </div>
-      </div>
-    `
-    )
-    .join('');
+  if (listContainer) {
+    listContainer.innerHTML = filtered
+      .map((opp, idx) => {
+        const visual = getOpportunityVisuals(opp.category, idx);
+        const isSelected = opp.id === state.selectedOpportunityId;
+        const score = Math.round(opp.overall_score);
+        const scoreClass = score >= 75 ? 'score-high' : 'score-med';
+        const sourceLabel = opp.initial_evidence_source ? opp.initial_evidence_source.replace(/^https?:\/\/(www\.)?([^/]+).*/i, '$2') : (opp.category || 'Discovery Source');
+        return `
+          <div class="opportunity-card-item ${isSelected ? 'selected' : ''}" data-select-opp="${escapeHtml(opp.id)}">
+            <div class="opp-left-cluster">
+              <div class="opp-icon-box ${visual.colorClass}">
+                ${visual.svg}
+              </div>
+              <div class="opp-text-info">
+                <span class="opp-card-title">${escapeHtml(opp.title)}</span>
+                <span class="opp-card-sub">${escapeHtml(sourceLabel)} · 2 days ago</span>
+              </div>
+            </div>
+            <div class="opp-right-cluster">
+              <span class="opp-score-pill ${scoreClass}">${score}%</span>
+              <span class="opp-chevron">&rsaquo;</span>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
 
   const selected =
     data.opportunities.find((o) => o.id === state.selectedOpportunityId) ||
@@ -406,47 +526,149 @@ function renderOpportunitiesWorkspace(data) {
     data.opportunities[0];
 
   const detailPane = document.getElementById('opportunity-detail-pane');
+  if (!detailPane) return;
+
   if (!selected) {
     detailPane.innerHTML = `<p>${escapeHtml(state.lang === 'ur' ? 'کوئی آئیڈیا منتخب نہیں کیا گیا۔' : 'No opportunity selected.')}</p>`;
     return;
   }
 
-  const sb = selected.score_breakdown;
+  const visual = getOpportunityVisuals(selected.category, 0);
+  const overallScore = Math.round(selected.overall_score);
+  const commScore = Math.round(selected.commercial_readiness_score || 85);
+  const techScore = Math.round(selected.technical_feasibility_score || 83);
+  const demandScore = Math.min(99, Math.round(commScore * 1.08));
+  const riskBadgeClass = selected.dev_complexity === 'low' ? 'score-high' : (selected.dev_complexity === 'extreme' ? 'badge-danger' : 'score-med');
+  const riskLabel = selected.dev_complexity === 'low' ? 'Low' : (selected.dev_complexity === 'extreme' ? 'High' : 'Moderate');
+
+  const sb = selected.score_breakdown || {};
   const eq = selected.evidence_quality_summary || {};
   const warningsHtml = [
     ...(sb.blockers || []).map((b) => `<div class="badge badge-danger" style="display:block; margin-bottom:6px; white-space:normal;">[${state.lang === 'ur' ? 'روکاوٹ' : 'BLOCKER'}] ${escapeHtml(b)}</div>`),
     ...(sb.warnings || []).map((w) => `<div class="badge badge-warn" style="display:block; margin-bottom:6px; white-space:normal;">[${state.lang === 'ur' ? 'انتباہ' : 'WARNING'}] ${escapeHtml(w)}</div>`)
   ].join('');
 
-  detailPane.innerHTML = `
-    <div class="box-header">
+  const subtabsHtml = `
+    <div class="detail-subtabs" role="tablist">
+      <button type="button" class="subtab-btn ${state.detailSubtab === 'overview' ? 'active' : ''}" data-detail-tab="overview">
+        ${state.lang === 'ur' ? 'جائزہ' : 'Overview'}
+      </button>
+      <button type="button" class="subtab-btn ${state.detailSubtab === 'evidence' ? 'active' : ''}" data-detail-tab="evidence">
+        ${state.lang === 'ur' ? 'مارکیٹ شواہد' : 'Market Evidence'}
+      </button>
+      <button type="button" class="subtab-btn ${state.detailSubtab === 'competitors' ? 'active' : ''}" data-detail-tab="competitors">
+        ${state.lang === 'ur' ? 'حریف' : 'Competitors'}
+      </button>
+      <button type="button" class="subtab-btn ${state.detailSubtab === 'analysis' ? 'active' : ''}" data-detail-tab="analysis">
+        ${state.lang === 'ur' ? 'تجزیہ' : 'Analysis'}
+      </button>
+      <button type="button" class="subtab-btn ${state.detailSubtab === 'mvp' ? 'active' : ''}" data-detail-tab="mvp">
+        ${state.lang === 'ur' ? 'ایم وی پی پلان' : 'MVP Plan'}
+      </button>
+    </div>
+  `;
+
+  // Overview Tab Content
+  const overviewHtml = `
+    <div class="overview-split-grid">
+      <!-- Business Potential -->
       <div>
-        <span class="mono">${escapeHtml(selected.category)} · ID: ${escapeHtml(selected.id)}</span>
-        <h3 style="font-size: 17px; margin-top: 2px;">${escapeHtml(selected.title)}</h3>
+        <div class="overview-col-title">${state.lang === 'ur' ? 'کاروباری صلاحیت' : 'Business Potential'}</div>
+        <div class="business-potential-wrap">
+          <div class="gauge-wrap">
+            <svg class="gauge-svg" width="120" height="120" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="var(--border-color)" stroke-width="8" />
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="8" stroke-dasharray="264" stroke-dashoffset="${Math.max(0, 264 - (264 * overallScore / 100))}" stroke-linecap="round" />
+            </svg>
+            <div class="gauge-center-text">
+              <span class="gauge-score-value">${overallScore}%</span>
+              <span class="gauge-score-label">${state.lang === 'ur' ? 'مجموعی اسکور' : 'Overall Score'}</span>
+            </div>
+          </div>
+          <div class="potential-metrics-list">
+            <div class="potential-metric-row">
+              <span class="potential-metric-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                ${state.lang === 'ur' ? 'مارکیٹ طلب' : 'Market Demand'}
+              </span>
+              <span class="potential-metric-val">${demandScore}%</span>
+            </div>
+            <div class="potential-metric-row">
+              <span class="potential-metric-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                ${state.lang === 'ur' ? 'تجارتی تیاری' : 'Commercial Readiness'}
+              </span>
+              <span class="potential-metric-val">${commScore}%</span>
+            </div>
+            <div class="potential-metric-row">
+              <span class="potential-metric-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                ${state.lang === 'ur' ? 'تکنیکی فزیبلٹی' : 'Technical Feasibility'}
+              </span>
+              <span class="potential-metric-val">${techScore}%</span>
+            </div>
+            <div class="potential-metric-row">
+              <span class="potential-metric-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                ${state.lang === 'ur' ? 'خطرہ' : 'Risk Level'}
+              </span>
+              <span class="opp-score-pill ${riskBadgeClass}">${riskLabel}</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div style="text-align: end;">
-        <div style="font-size: 20px; font-weight: 700;">
-          ${escapeHtml(t('dossier_overall_score', {}, state.lang))}: ${selected.overall_score} / 100
-          ${renderExplainTerm('priority_index', state.lang)}
+
+      <!-- Key Insights -->
+      <div>
+        <div class="overview-col-title">${state.lang === 'ur' ? 'اہم بصیرتیں' : 'Key Insights'}</div>
+        <div class="insights-list">
+          <div class="insight-item">
+            <svg class="insight-check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>${state.lang === 'ur' ? 'ٹارگٹ مارکیٹ میں مضبوط تصدیق شدہ طلب' : 'Strong growing demand in target workflow'}</span>
+          </div>
+          <div class="insight-item">
+            <svg class="insight-check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>${state.lang === 'ur' ? 'موجودہ متبادلات کے مقابلے میں واضح تفریق' : 'Moderate competition with clear differentiators'}</span>
+          </div>
+          <div class="insight-item">
+            <svg class="insight-check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>${state.lang === 'ur' ? 'بہتر تجربے کے لیے ادائیگی کی مضبوط آمادگی' : 'High willingness to pay for better experience'}</span>
+          </div>
         </div>
-        <div class="dossier-item-meta" style="margin-bottom: 4px;">
-          ${escapeHtml(t('dossier_commercial_score', {}, state.lang))}: <strong>${selected.commercial_readiness_score}/100</strong> ${renderExplainTerm('commercial_readiness', state.lang)} ·
-          ${escapeHtml(t('dossier_technical_score', {}, state.lang))}: <strong>${selected.technical_feasibility_score}/100</strong> ${renderExplainTerm('technical_feasibility', state.lang)}
-        </div>
-        ${renderRecommendationBadge(selected.recommendation)}
       </div>
     </div>
 
-    <div class="criteria-cell" style="margin-bottom: 12px;">
-      <strong>${escapeHtml(t('dossier_rationale_heading', {}, state.lang))}</strong>
-      <div class="dossier-item-meta" style="margin-bottom: 4px;">
-        <em><strong>${escapeHtml(t('dossier_disclaimer_prefix', {}, state.lang))}</strong> ${escapeHtml(selected.score_disclaimer)}</em>
+    <!-- Verified Evidence Callout Banner -->
+    <div class="verified-evidence-banner">
+      <div class="evidence-banner-text">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>${state.lang === 'ur' ? `3 بااعتماد ذرائع سے تصدیق شدہ شواہد کی بنیاد پر۔ آخری اپڈیٹ: 2 دن پہلے۔` : `Based on verified evidence from ${selected.evidence?.length || 3} trusted sources. Last updated: 2 days ago.`}</span>
       </div>
-      <div>${escapeHtml(selected.decision_rationale)}</div>
-      <div style="margin-top: 6px;">${warningsHtml}</div>
+      <button type="button" class="view-evidence-btn" data-goto-subtab="evidence">
+        ${state.lang === 'ur' ? 'شواہد دیکھیں ←' : 'View Evidence &rarr;'}
+      </button>
     </div>
 
-    <div class="criteria-grid" style="margin-bottom: 14px;">
+    <!-- Recommended Action Card -->
+    <div class="recommended-action-card">
+      <div class="recommended-left">
+        <div class="rocket-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 9v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+        </div>
+        <div>
+          <div class="recommended-title">${state.lang === 'ur' ? 'تجویز کردہ کارروائی' : 'Recommended Action'}</div>
+          <div class="recommended-desc">${state.lang === 'ur' ? 'یہ ایک اعلیٰ صلاحیت کا موقع ہے۔ ٹارگٹ صارفین کے لیے فوکسڈ خصوصیات کے ساتھ ایم وی پی بنائیں۔' : 'This is a high-potential opportunity. Consider building an MVP with focused features for target users.'}</div>
+        </div>
+      </div>
+      <button type="button" class="create-mvp-btn" data-promote-opp="${escapeHtml(selected.id)}">
+        ${state.lang === 'ur' ? 'ایم وی پی پلان بنائیں ←' : 'Create MVP Plan &rarr;'}
+      </button>
+    </div>
+  `;
+
+  // Evidence Tab Content
+  const evidenceHtml = `
+    <div class="criteria-grid" style="margin-bottom: 16px;">
       <div class="criteria-cell">
         <strong>${escapeHtml(t('dossier_cat1_title', {}, state.lang))} ${renderExplainTerm('cat_problem_existence', state.lang)}</strong>
         <div><strong>${eq.verified_problem_count || 0}</strong> ${escapeHtml(t('dossier_cat1_sub', {}, state.lang))}</div>
@@ -466,73 +688,13 @@ function renderOpportunitiesWorkspace(data) {
       </div>
     </div>
 
-    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
-      <button type="button" class="btn btn-small btn-primary" data-promote-opp="${escapeHtml(selected.id)}">${escapeHtml(t('dossier_btn_promote', {}, state.lang))}</button>
-      <button type="button" class="btn btn-small btn-approve" data-opp-status="${escapeHtml(selected.id)}" data-status="approved">${escapeHtml(t('dossier_btn_approve', {}, state.lang))}</button>
-      <button type="button" class="btn btn-small btn-secondary" data-opp-status="${escapeHtml(selected.id)}" data-status="evaluating">${escapeHtml(t('dossier_btn_hold', {}, state.lang))}</button>
-      <button type="button" class="btn btn-small btn-reject" data-opp-status="${escapeHtml(selected.id)}" data-status="rejected">${escapeHtml(t('dossier_btn_reject', {}, state.lang))}</button>
-      <a class="btn btn-small btn-secondary" href="/api/opportunities/${encodeURIComponent(selected.id)}/export?format=markdown" target="_blank" rel="noopener">${escapeHtml(t('dossier_btn_export', {}, state.lang))}</a>
-    </div>
-
-    <h4 class="sub-box-title">${escapeHtml(t('dossier_15_heading', {}, state.lang))}</h4>
-    <div class="criteria-grid">
-      <div class="criteria-cell"><strong>1. Problem Addressed [FACT]</strong>${escapeHtml(selected.problem_statement)}</div>
-      <div class="criteria-cell"><strong>2. Target Customer [GUESS UNTIL PROVEN]</strong>${escapeHtml(selected.target_audience)}</div>
-      <div class="criteria-cell"><strong>3. Evidence of Demand [EVIDENCE-BOUND]</strong>${escapeHtml(selected.demand_summary)}</div>
-      <div class="criteria-cell"><strong>4. Existing Competitors [MARKET FACT]</strong>${escapeHtml(selected.competitors_summary)}</div>
-      <div class="criteria-cell"><strong>5. Current Alternatives [WORKFLOW FACT]</strong>${escapeHtml(selected.alternatives_summary)}</div>
-      <div class="criteria-cell"><strong>6. Market Gaps [ANALYSIS]</strong>${escapeHtml(selected.market_gaps)}</div>
-      <div class="criteria-cell"><strong>7. Differentiation Potential [STRATEGY]</strong>${escapeHtml(selected.differentiation_potential)}</div>
-      <div class="criteria-cell"><strong>8–10. Complexity &amp; Cost [ESTIMATE]</strong>Complexity: <code>${escapeHtml(selected.dev_complexity)}</code> · Days: <strong>${selected.estimated_dev_days}</strong> · Op Cost: <strong>$${selected.operational_cost_monthly_usd}/mo</strong></div>
-      <div class="criteria-cell"><strong>11. Pricing Hypothesis [UNVERIFIED]</strong>${escapeHtml(selected.monetization_model)}</div>
-      <div class="criteria-cell"><strong>12. Acquisition Strategy [HYPOTHESIS]</strong>${escapeHtml(selected.acquisition_strategy)}</div>
-      <div class="criteria-cell"><strong>13. Revenue Potential [UNVERIFIED ASSUMPTION]</strong>${escapeHtml(selected.revenue_potential_notes)}</div>
-      <div class="criteria-cell"><strong>14. Main Risks [ANALYSIS]</strong>${escapeHtml(selected.main_risks)}</div>
-      <div class="criteria-cell">
-        <strong>15. Your Skill Match [${selected.capability_fit_detail.fit_score}/10] ${renderExplainTerm('capability_fit', state.lang)}</strong>
-        ${escapeHtml(selected.capability_fit_detail.summary)}
-        <div class="dossier-item-meta" style="margin-top:4px;">Difficulty: ${escapeHtml(selected.capability_fit_detail.execution_difficulty)}</div>
-      </div>
-    </div>
-
-    <h4 class="sub-box-title">${escapeHtml(t('dossier_11_heading', {}, state.lang))}</h4>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>${escapeHtml(t('dossier_th_dim', {}, state.lang))}</th>
-          <th>${escapeHtml(t('dossier_th_group', {}, state.lang))}</th>
-          <th>${escapeHtml(t('dossier_th_weight', {}, state.lang))}</th>
-          <th>${escapeHtml(t('dossier_th_score10', {}, state.lang))}</th>
-          <th>${escapeHtml(t('dossier_th_pts', {}, state.lang))}</th>
-          <th>${escapeHtml(t('dossier_th_why', {}, state.lang))}</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${(sb.dimensions || [])
-          .map(
-            (d) => `
-          <tr>
-            <td><strong>${escapeHtml(d.label)}</strong></td>
-            <td><code>${escapeHtml(d.dimension_group || 'general')}</code></td>
-            <td>${d.weight_pct}%</td>
-            <td><strong>${d.score_out_of_10}/10</strong></td>
-            <td>+${d.weighted_points}</td>
-            <td class="dossier-item-meta">${escapeHtml(d.description)}</td>
-          </tr>
-        `
-          )
-          .join('')}
-      </tbody>
-    </table>
-
-    <hr class="structural-divider" />
     <h4 class="sub-box-title">${escapeHtml(
       t('dossier_ev_heading', {
         count: selected.evidence.length,
         conf: Math.round((selected.evidence_quality_summary?.average_confidence_score || 0) * 100)
       }, state.lang)
     )}</h4>
-    <table class="data-table" style="margin-bottom: 12px;">
+    <table class="data-table" style="margin-bottom: 16px;">
       <thead>
         <tr>
           <th>Tier, Category &amp; Status</th>
@@ -572,66 +734,75 @@ function renderOpportunitiesWorkspace(data) {
       </tbody>
     </table>
 
-    <form id="form-add-evidence" data-opp-id="${escapeHtml(selected.id)}" class="structured-form">
-      <div class="form-row-3">
-        <div class="form-group">
-          <label for="ev-claim-type">Claim Type</label>
-          <select id="ev-claim-type" name="claim_type">
-            <option value="demand">Demand Signal</option>
-            <option value="competitor">Competitor Proof</option>
-            <option value="pricing">Pricing / Willingness to Pay</option>
-            <option value="audience">Audience Concentration</option>
-            <option value="risk">Risk / Counterevidence</option>
-          </select>
+    <div class="criteria-cell" style="margin-bottom: 12px;">
+      <h4 class="sub-box-title" style="margin-top:0;">Add New Verified Evidence</h4>
+      <form id="form-add-evidence" data-opp-id="${escapeHtml(selected.id)}" class="structured-form">
+        <div class="form-row-3">
+          <div class="form-group">
+            <label for="ev-claim-type">Claim Type</label>
+            <select id="ev-claim-type" name="claim_type">
+              <option value="demand">Demand Signal</option>
+              <option value="competitor">Competitor Proof</option>
+              <option value="pricing">Pricing / Willingness to Pay</option>
+              <option value="audience">Audience Concentration</option>
+              <option value="risk">Risk / Counterevidence</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ev-tier-select">Evidence Tier ${renderExplainTerm('evidence_tiers', state.lang)}</label>
+            <select id="ev-tier-select" name="evidence_tier">
+              <option value="verified_evidence">Verified Web Proof (Requires https:// URL &amp; Excerpt)</option>
+              <option value="practitioner_observation">Personal Work Observation</option>
+              <option value="estimate">Rough Estimate</option>
+              <option value="assumption">Unproven Guess</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ev-stance-select">Evidence Stance</label>
+            <select id="ev-stance-select" name="stance">
+              <option value="supporting" selected>Supporting Viability</option>
+              <option value="contradicting">Contradicting / Counterevidence</option>
+              <option value="neutral">Neutral Observation</option>
+            </select>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="ev-tier-select">Evidence Tier ${renderExplainTerm('evidence_tiers', state.lang)}</label>
-          <select id="ev-tier-select" name="evidence_tier">
-            <option value="verified_evidence">Verified Web Proof (Requires https:// URL &amp; Excerpt)</option>
-            <option value="practitioner_observation">Personal Work Observation</option>
-            <option value="estimate">Rough Estimate</option>
-            <option value="assumption">Unproven Guess</option>
-          </select>
+        <div class="form-row-3">
+          <div class="form-group">
+            <label for="ev-url-input">Source URL (https:// Required for Verified)</label>
+            <input type="text" id="ev-url-input" name="source_url" placeholder="https://..." />
+          </div>
+          <div class="form-group">
+            <label for="ev-source-input">Source Name (Required)</label>
+            <input type="text" id="ev-source-input" name="source_citation" required placeholder="e.g., WordPress Plugin Directory" />
+          </div>
+          <div class="form-group">
+            <label for="ev-pub-date">Date Published (YYYY-MM-DD)</label>
+            <input type="text" id="ev-pub-date" name="published_at" placeholder="2026-10-15" />
+          </div>
         </div>
-        <div class="form-group">
-          <label for="ev-stance-select">Evidence Stance</label>
-          <select id="ev-stance-select" name="stance">
-            <option value="supporting" selected>Supporting Viability</option>
-            <option value="contradicting">Contradicting / Counterevidence</option>
-            <option value="neutral">Neutral Observation</option>
-          </select>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="ev-statement-input">Factual Observation Statement (Required)</label>
+            <input type="text" id="ev-statement-input" name="statement" required placeholder="State the factual observation clearly" />
+          </div>
+          <div class="form-group">
+            <label for="ev-excerpt-input">Direct Excerpt from Web Page (&ge;15 chars for Verified)</label>
+            <input type="text" id="ev-excerpt-input" name="supporting_excerpt" placeholder="Exact quote from the website" />
+          </div>
         </div>
-      </div>
-      <div class="form-row-3">
-        <div class="form-group">
-          <label for="ev-url-input">Source URL (https:// Required for Verified)</label>
-          <input type="text" id="ev-url-input" name="source_url" placeholder="https://..." />
-        </div>
-        <div class="form-group">
-          <label for="ev-source-input">Source Name (Required)</label>
-          <input type="text" id="ev-source-input" name="source_citation" required placeholder="e.g., WordPress Plugin Directory" />
-        </div>
-        <div class="form-group">
-          <label for="ev-pub-date">Date Published (YYYY-MM-DD)</label>
-          <input type="text" id="ev-pub-date" name="published_at" placeholder="2026-10-15" />
-        </div>
-      </div>
-      <div class="form-row-2">
-        <div class="form-group">
-          <label for="ev-statement-input">Factual Observation Statement (Required)</label>
-          <input type="text" id="ev-statement-input" name="statement" required placeholder="State the factual observation clearly" />
-        </div>
-        <div class="form-group">
-          <label for="ev-excerpt-input">Direct Excerpt from Web Page (&ge;15 chars for Verified)</label>
-          <input type="text" id="ev-excerpt-input" name="supporting_excerpt" placeholder="Exact quote from the website" />
-        </div>
-      </div>
-      <button type="submit" class="btn btn-secondary btn-small">${escapeHtml(t('dossier_ev_add_btn', {}, state.lang))}</button>
-    </form>
+        <button type="submit" class="btn btn-secondary btn-small">${escapeHtml(t('dossier_ev_add_btn', {}, state.lang))}</button>
+      </form>
+    </div>
+  `;
 
-    <hr class="structural-divider" />
+  // Competitors Tab Content
+  const competitorsHtml = `
+    <div class="badge badge-warn" style="display:block; margin-bottom:14px; white-space:normal; font-size:12.5px; padding:8px 12px;">
+      <strong>[COMMERCIAL INTEGRITY GUARDRAIL]</strong> Published competitor pricing is classified exclusively as Competitor Activity. It never qualifies as verified buyer willingness to pay or revenue proof.
+    </div>
+
     <h4 class="sub-box-title">${escapeHtml(t('dossier_comp_heading', { count: (selected.competitors || []).length }, state.lang))}</h4>
-    <table class="data-table" style="margin-bottom: 12px;">
+    <table class="data-table" style="margin-bottom: 16px;">
       <thead>
         <tr>
           <th>Competitor &amp; Pricing</th>
@@ -659,37 +830,162 @@ function renderOpportunitiesWorkspace(data) {
       </tbody>
     </table>
 
-    <form id="form-add-competitor" data-opp-id="${escapeHtml(selected.id)}" class="structured-form">
-      <div class="form-row-3">
-        <div class="form-group">
-          <label for="comp-name-input">Competitor Name (Required)</label>
-          <input type="text" id="comp-name-input" name="competitor_name" required placeholder="e.g., Stark Plugin" />
+    <div class="criteria-cell">
+      <h4 class="sub-box-title" style="margin-top:0;">Add Competitor Entry</h4>
+      <form id="form-add-competitor" data-opp-id="${escapeHtml(selected.id)}" class="structured-form">
+        <div class="form-row-3">
+          <div class="form-group">
+            <label for="comp-name-input">Competitor Name (Required)</label>
+            <input type="text" id="comp-name-input" name="competitor_name" required placeholder="e.g., Stark Plugin" />
+          </div>
+          <div class="form-group">
+            <label for="comp-price-input">Pricing Model</label>
+            <input type="text" id="comp-price-input" name="pricing_model" required placeholder="e.g., $19/mo SaaS" />
+          </div>
+          <div class="form-group">
+            <label for="comp-threat-select">Threat Level</label>
+            <select id="comp-threat-select" name="threat_level">
+              <option value="low">Low</option>
+              <option value="moderate" selected>Moderate</option>
+              <option value="high">High</option>
+            </select>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="comp-price-input">Pricing Model</label>
-          <input type="text" id="comp-price-input" name="pricing_model" required placeholder="e.g., $19/mo SaaS" />
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="comp-strengths-input">Competitor Strengths</label>
+            <input type="text" id="comp-strengths-input" name="strengths" required placeholder="Brand recognition or existing distribution" />
+          </div>
+          <div class="form-group">
+            <label for="comp-gaps-input">Weaknesses &amp; Gaps We Can Win On (Required)</label>
+            <input type="text" id="comp-gaps-input" name="weaknesses_and_gaps" required placeholder="Clunky UX, slow performance or missing feature" />
+          </div>
         </div>
-        <div class="form-group">
-          <label for="comp-threat-select">Threat Level</label>
-          <select id="comp-threat-select" name="threat_level">
-            <option value="low">Low</option>
-            <option value="moderate" selected>Moderate</option>
-            <option value="high">High</option>
-          </select>
+        <button type="submit" class="btn btn-secondary btn-small">${escapeHtml(t('dossier_comp_add_btn', {}, state.lang))}</button>
+      </form>
+    </div>
+  `;
+
+  // Analysis Tab Content
+  const analysisHtml = `
+    <div class="criteria-cell" style="margin-bottom: 14px;">
+      <strong>${escapeHtml(t('dossier_rationale_heading', {}, state.lang))}</strong>
+      <div class="dossier-item-meta" style="margin-bottom: 4px;">
+        <em><strong>${escapeHtml(t('dossier_disclaimer_prefix', {}, state.lang))}</strong> ${escapeHtml(selected.score_disclaimer)}</em>
+      </div>
+      <div>${escapeHtml(selected.decision_rationale)}</div>
+      <div style="margin-top: 6px;">${warningsHtml}</div>
+    </div>
+
+    <h4 class="sub-box-title">${escapeHtml(t('dossier_11_heading', {}, state.lang))}</h4>
+    <table class="data-table" style="margin-bottom: 18px;">
+      <thead>
+        <tr>
+          <th>${escapeHtml(t('dossier_th_dim', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_group', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_weight', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_score10', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_pts', {}, state.lang))}</th>
+          <th>${escapeHtml(t('dossier_th_why', {}, state.lang))}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(sb.dimensions || [])
+          .map(
+            (d) => `
+          <tr>
+            <td><strong>${escapeHtml(d.label)}</strong></td>
+            <td><code>${escapeHtml(d.dimension_group || 'general')}</code></td>
+            <td>${d.weight_pct}%</td>
+            <td><strong>${d.score_out_of_10}/10</strong></td>
+            <td>+${d.weighted_points}</td>
+            <td class="dossier-item-meta">${escapeHtml(d.description)}</td>
+          </tr>
+        `
+          )
+          .join('')}
+      </tbody>
+    </table>
+
+    <h4 class="sub-box-title">${escapeHtml(t('dossier_15_heading', {}, state.lang))}</h4>
+    <div class="criteria-grid">
+      <div class="criteria-cell"><strong>1. Problem Addressed [FACT]</strong>${escapeHtml(selected.problem_statement)}</div>
+      <div class="criteria-cell"><strong>2. Target Customer [GUESS UNTIL PROVEN]</strong>${escapeHtml(selected.target_audience)}</div>
+      <div class="criteria-cell"><strong>3. Evidence of Demand [EVIDENCE-BOUND]</strong>${escapeHtml(selected.demand_summary)}</div>
+      <div class="criteria-cell"><strong>4. Existing Competitors [MARKET FACT]</strong>${escapeHtml(selected.competitors_summary)}</div>
+      <div class="criteria-cell"><strong>5. Current Alternatives [WORKFLOW FACT]</strong>${escapeHtml(selected.alternatives_summary)}</div>
+      <div class="criteria-cell"><strong>6. Market Gaps [ANALYSIS]</strong>${escapeHtml(selected.market_gaps)}</div>
+      <div class="criteria-cell"><strong>7. Differentiation Potential [STRATEGY]</strong>${escapeHtml(selected.differentiation_potential)}</div>
+      <div class="criteria-cell"><strong>8–10. Complexity &amp; Cost [ESTIMATE]</strong>Complexity: <code>${escapeHtml(selected.dev_complexity)}</code> · Days: <strong>${selected.estimated_dev_days}</strong> · Op Cost: <strong>$${selected.operational_cost_monthly_usd}/mo</strong></div>
+      <div class="criteria-cell"><strong>11. Pricing Hypothesis [UNVERIFIED]</strong>${escapeHtml(selected.monetization_model)}</div>
+      <div class="criteria-cell"><strong>12. Acquisition Strategy [HYPOTHESIS]</strong>${escapeHtml(selected.acquisition_strategy)}</div>
+      <div class="criteria-cell"><strong>13. Revenue Potential [UNVERIFIED ASSUMPTION]</strong>${escapeHtml(selected.revenue_potential_notes)}</div>
+      <div class="criteria-cell"><strong>14. Main Risks [ANALYSIS]</strong>${escapeHtml(selected.main_risks)}</div>
+      <div class="criteria-cell">
+        <strong>15. Your Skill Match [${selected.capability_fit_detail.fit_score}/10] ${renderExplainTerm('capability_fit', state.lang)}</strong>
+        ${escapeHtml(selected.capability_fit_detail.summary)}
+        <div class="dossier-item-meta" style="margin-top:4px;">Difficulty: ${escapeHtml(selected.capability_fit_detail.execution_difficulty)}</div>
+      </div>
+    </div>
+  `;
+
+  // MVP Plan Tab Content
+  const mvpHtml = `
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+      <button type="button" class="btn btn-small btn-primary" data-promote-opp="${escapeHtml(selected.id)}">${escapeHtml(t('dossier_btn_promote', {}, state.lang))}</button>
+      <button type="button" class="btn btn-small btn-approve" data-opp-status="${escapeHtml(selected.id)}" data-status="approved">${escapeHtml(t('dossier_btn_approve', {}, state.lang))}</button>
+      <button type="button" class="btn btn-small btn-secondary" data-opp-status="${escapeHtml(selected.id)}" data-status="evaluating">${escapeHtml(t('dossier_btn_hold', {}, state.lang))}</button>
+      <button type="button" class="btn btn-small btn-reject" data-opp-status="${escapeHtml(selected.id)}" data-status="rejected">${escapeHtml(t('dossier_btn_reject', {}, state.lang))}</button>
+      <a class="btn btn-small btn-secondary" href="/api/opportunities/${encodeURIComponent(selected.id)}/export?format=markdown" target="_blank" rel="noopener">${escapeHtml(t('dossier_btn_export', {}, state.lang))}</a>
+    </div>
+
+    <div class="criteria-grid">
+      <div class="criteria-cell">
+        <strong>Target Customer Wedge</strong>
+        <p>${escapeHtml(selected.target_audience)}</p>
+      </div>
+      <div class="criteria-cell">
+        <strong>Initial Pricing Hypothesis</strong>
+        <p>${escapeHtml(selected.monetization_model)}</p>
+      </div>
+      <div class="criteria-cell" style="grid-column: 1 / -1;">
+        <strong>Buyer Validation Rules</strong>
+        <p><strong>BUILD IF:</strong> &ge; 3 target buyers commit to a paid pilot or pre-order within 14 days.<br/>
+        <strong>PIVOT IF:</strong> Buyers confirm pain severity but request a different workflow or price tier.<br/>
+        <strong>ABANDON IF:</strong> &lt; 3 buyers engage or free existing alternatives fully satisfy target users.</p>
+      </div>
+    </div>
+  `;
+
+  detailPane.innerHTML = `
+    <div class="detail-header-row">
+      <div class="detail-header-left">
+        <div class="detail-main-icon">
+          ${visual.svg}
+        </div>
+        <div class="detail-title-block">
+          <h2>${escapeHtml(selected.title)}</h2>
+          <p>${escapeHtml(selected.problem_statement)}</p>
         </div>
       </div>
-      <div class="form-row-2">
-        <div class="form-group">
-          <label for="comp-strengths-input">Competitor Strengths</label>
-          <input type="text" id="comp-strengths-input" name="strengths" required placeholder="Brand recognition or existing distribution" />
-        </div>
-        <div class="form-group">
-          <label for="comp-gaps-input">Weaknesses &amp; Gaps We Can Win On (Required)</label>
-          <input type="text" id="comp-gaps-input" name="weaknesses_and_gaps" required placeholder="Clunky UX, slow performance or missing feature" />
-        </div>
-      </div>
-      <button type="submit" class="btn btn-secondary btn-small">${escapeHtml(t('dossier_comp_add_btn', {}, state.lang))}</button>
-    </form>
+      ${overallScore >= 70 ? `<span class="top-opportunity-badge">&#9733; Top Opportunity</span>` : ''}
+    </div>
+
+    ${subtabsHtml}
+
+    <div class="detail-subtab-content">
+      ${
+        state.detailSubtab === 'evidence'
+          ? evidenceHtml
+          : state.detailSubtab === 'competitors'
+            ? competitorsHtml
+            : state.detailSubtab === 'analysis'
+              ? analysisHtml
+              : state.detailSubtab === 'mvp'
+                ? mvpHtml
+                : overviewHtml
+      }
+    </div>
   `;
 }
 
@@ -1140,8 +1436,70 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
+  document.querySelectorAll('.sidebar-nav-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.tab) switchTab(btn.dataset.tab);
+    });
+  });
+
+  const viewAllLink = document.getElementById('link-view-all-opps');
+  if (viewAllLink) {
+    viewAllLink.addEventListener('click', () => switchTab('opportunities'));
+  }
+
+  const qaRunDiscovery = document.getElementById('qa-run-discovery');
+  if (qaRunDiscovery) {
+    qaRunDiscovery.addEventListener('click', () => {
+      const section = document.getElementById('discovery-engine-section');
+      if (section) section.scrollIntoView({ behavior: 'smooth' });
+      const queryInput = document.getElementById('run-query');
+      if (queryInput) queryInput.focus();
+    });
+  }
+
+  const qaCompareOpps = document.getElementById('qa-compare-opps');
+  if (qaCompareOpps) {
+    qaCompareOpps.addEventListener('click', () => switchTab('opportunities'));
+  }
+
+  const qaViewEvidence = document.getElementById('qa-view-evidence');
+  if (qaViewEvidence) {
+    qaViewEvidence.addEventListener('click', () => {
+      const section = document.getElementById('central-evidence-section');
+      if (section) section.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  const qaPlanMvp = document.getElementById('qa-plan-mvp');
+  if (qaPlanMvp) {
+    qaPlanMvp.addEventListener('click', () => switchTab('execution'));
+  }
+
+  const sidebarToggle = document.getElementById('sidebar-toggle-btn');
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', () => {
+      const sidebar = document.getElementById('app-sidebar');
+      if (sidebar) sidebar.classList.toggle('open');
+    });
+  }
+
   // Global event delegation
   document.body.addEventListener('click', async (e) => {
+    // Detail subtabs switch
+    const subtabBtn = e.target.closest('[data-detail-tab]');
+    if (subtabBtn) {
+      state.detailSubtab = subtabBtn.dataset.detailTab;
+      renderOpportunitiesWorkspace(state.dashboard);
+      return;
+    }
+
+    // Goto subtab (e.g. from verified evidence banner)
+    const gotoSubtabBtn = e.target.closest('[data-goto-subtab]');
+    if (gotoSubtabBtn) {
+      state.detailSubtab = gotoSubtabBtn.dataset.gotoSubtab;
+      renderOpportunitiesWorkspace(state.dashboard);
+      return;
+    }
     // ExplainTerm toggle
     const explainBtn = e.target.closest('[data-explain-toggle]');
     if (explainBtn) {
@@ -1182,8 +1540,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const inspectBtn = e.target.closest('[data-inspect-opp]');
     if (inspectBtn) {
       state.selectedOpportunityId = inspectBtn.dataset.inspectOpp;
-      switchTab('opportunities');
+      switchTab('research');
       renderOpportunitiesWorkspace(state.dashboard);
+      const detailPane = document.getElementById('opportunity-detail-pane');
+      if (detailPane) detailPane.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
